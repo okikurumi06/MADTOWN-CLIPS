@@ -1,10 +1,10 @@
 // src/app/api/fetch-videos-diff/route.ts
 import { NextResponse } from "next/server";
-import { google, youtube_v3 } from "googleapis"; // ← 型を明示的に読み込み
+import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-const MAX_RESULTS = 25; // クォータ節約
+const MAX_RESULTS = 25;
 
 export async function GET() {
   try {
@@ -46,7 +46,6 @@ export async function GET() {
 
     let totalInserted = 0;
 
-    // ⏱ ISO8601 → 秒変換
     const parseDuration = (iso: string): number => {
       const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
       if (!m) return 0;
@@ -56,14 +55,13 @@ export async function GET() {
       return h * 3600 + min * 60 + s;
     };
 
-    // 🎥 各チャンネルの新着動画を取得
     for (const ch of channels) {
       let nextPageToken: string | undefined = undefined;
       console.log(`📡 チャンネル取得中: ${ch.name} (${ch.id})`);
 
       while (true) {
-        // 👇 型を明示してビルド通過
-        const searchRes: youtube_v3.Schema$SearchListResponse =
+        // ✅ 型の修正版：GaxiosResponseでラップされた型を明示
+        const searchRes: import("gaxios").GaxiosResponse<youtube_v3.Schema$SearchListResponse> =
           await yt.search.list({
             part: ["id"],
             channelId: ch.id!,
@@ -81,11 +79,10 @@ export async function GET() {
 
         if (!ids?.length) break;
 
-        // 🎯 詳細情報取得
-        const statsRes: youtube_v3.Schema$VideoListResponse =
+        const statsRes: import("gaxios").GaxiosResponse<youtube_v3.Schema$VideoListResponse> =
           await yt.videos.list({
             part: ["snippet", "statistics", "contentDetails"],
-            id: ids, // ✅ joinを削除し配列のまま渡す
+            id: ids, // ✅ join不要
           });
 
         const videos =
@@ -94,8 +91,6 @@ export async function GET() {
               const duration = v.contentDetails?.duration || "";
               const durationSec = parseDuration(duration);
               const liveState = v.snippet?.liveBroadcastContent;
-
-              // 🎛️ ライブ・1時間超え除外
               return (
                 durationSec > 0 &&
                 durationSec <= 3600 &&
