@@ -38,8 +38,8 @@ export async function GET() {
 
     try {
       const res = await yt.videos.list({
-        part: ["id"],
-        id: ids.join(","),
+      part: ["id"],
+      id: ids,  // ✅ join(",") を削除し、配列のまま渡す
       });
 
       // APIに存在しないIDを特定
