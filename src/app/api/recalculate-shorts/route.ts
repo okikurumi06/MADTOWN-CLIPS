@@ -6,78 +6,84 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 export async function GET() {
-  try {
-    const yt = google.youtube({
-      version: "v3",
-      auth: process.env.YT_API_KEY,
+  console.log("🔁 Shorts再計算開始");
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const yt = google.youtube({
+    version: "v3",
+    auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
+  });
+
+  // 🎥 全動画を取得（必要に応じて条件変更）
+  const { data: videos, error } = await supabase
+    .from("videos")
+    .select("id, duration, title, is_short_final");
+
+  if (error) throw error;
+  if (!videos?.length)
+    return NextResponse.json({ ok: true, updated: 0, msg: "No videos found" });
+
+  const parseDuration = (iso: string | null): number => {
+    if (!iso) return 0;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    const h = parseInt(m[1] || "0");
+    const min = parseInt(m[2] || "0");
+    const s = parseInt(m[3] || "0");
+    return h * 3600 + min * 60 + s;
+  };
+
+  const updates: { id: string; is_short_final: boolean }[] = [];
+
+  // 🔁 10件ずつ処理
+  const chunkSize = 10;
+  const chunks = Array.from({ length: Math.ceil(videos.length / chunkSize) }, (_, i) =>
+    videos.slice(i * chunkSize, i * chunkSize + chunkSize)
+  );
+
+  for (const chunk of chunks) {
+    const ids = chunk.map((v) => v.id);
+
+    // ✅ 型修正: id は string[]
+    const res = await yt.videos.list({
+      part: ["contentDetails", "snippet"],
+      id: ids,
     });
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const items = res.data.items || [];
 
-    // 🧭 Supabaseから全動画IDを取得
-    const { data: allVideos, error: fetchErr } = await supabase
-      .from("videos")
-      .select("id, title");
-    if (fetchErr) throw fetchErr;
-    if (!allVideos?.length)
-      return NextResponse.json({ ok: false, message: "no videos" });
+    for (const item of items) {
+      const duration = item.contentDetails?.duration || "";
+      const durationSec = parseDuration(duration);
+      const title = item.snippet?.title?.toLowerCase() || "";
 
-    const chunks = [];
-    for (let i = 0; i < allVideos.length; i += 50) {
-      chunks.push(allVideos.slice(i, i + 50));
-    }
+      const isShort =
+        durationSec > 0 &&
+        durationSec <= 65 &&
+        (title.includes("short") || title.includes("ショート"));
 
-    let updatedCount = 0;
-
-    for (const chunk of chunks) {
-      const ids = chunk.map((v) => v.id);
-      const res = await yt.videos.list({
-        part: ["contentDetails", "snippet"],
-        id: ids.join(","),
-      });
-
-      const items = res.data.items || [];
-
-      for (const v of items) {
-        const title = v.snippet?.title || "";
-        const duration = v.contentDetails?.duration || "";
-
-        // ⏱ duration → 秒数に変換
-        const match = duration.match(/PT(?:(\d+)M)?(?:(\d+)S)?/);
-        const minutes = match?.[1] ? parseInt(match[1]) : 0;
-        const seconds = match?.[2] ? parseInt(match[2]) : 0;
-        const totalSeconds = minutes * 60 + seconds;
-
-        // 🎯 改良版ロジック（時間のみで判定）
-        const is_short =
-          title.toLowerCase().includes("#shorts") ||
-          totalSeconds === 0 ||
-          totalSeconds < 61;
-
-        // 💾 部分更新
-        const { error: updateErr } = await supabase
-          .from("videos")
-          .update({ is_short })
-          .eq("id", v.id!);
-
-        if (updateErr)
-          console.warn("⚠️ update skipped:", v.id, updateErr.message);
-        else updatedCount++;
+      if (isShort) {
+        updates.push({ id: item.id!, is_short_final: true });
+        console.log(`🎯 ${item.id} → Shorts (${durationSec}s)`);
       }
-
-      // API制限対策
-      await new Promise((r) => setTimeout(r, 500));
     }
-
-    return NextResponse.json({
-      ok: true,
-      updated: updatedCount,
-    });
-  } catch (err: any) {
-    console.error("❌ recalc error:", err);
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
+
+  // 🔄 Supabase更新
+  let updatedCount = 0;
+  for (const u of updates) {
+    const { error: updateErr } = await supabase
+      .from("videos")
+      .update({ is_short_final: u.is_short_final })
+      .eq("id", u.id);
+
+    if (!updateErr) updatedCount++;
+  }
+
+  console.log(`✅ 更新完了: ${updatedCount} 件`);
+  return NextResponse.json({ ok: true, updated: updatedCount });
 }
