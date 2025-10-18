@@ -60,7 +60,6 @@ export async function GET() {
       console.log(`📡 チャンネル取得中: ${ch.name} (${ch.id})`);
 
       while (true) {
-        // ✅ 型は any にアサートしてHTTP1/2両対応
         const searchRes = (await yt.search.list({
           part: ["id"],
           channelId: ch.id!,
@@ -118,7 +117,9 @@ export async function GET() {
           );
         }
 
-        nextPageToken = searchRes.data.nextPageToken;
+        // 🩹 nullをundefinedに変換して型安全に代入
+        nextPageToken = searchRes.data.nextPageToken ?? undefined;
+
         if (!nextPageToken) break;
       }
     }
