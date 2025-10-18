@@ -1,80 +1,86 @@
 // src/app/api/fetch-videos/route.ts
 import { NextResponse } from "next/server";
-import { google } from "googleapis";
+import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+const MAX_RESULTS = 25;
 
 export async function GET() {
   try {
-    // ✅ YouTube API 初期化
     const yt = google.youtube({
       version: "v3",
-      auth: process.env.YT_API_KEY,
+      auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
     });
 
-    // ✅ Supabase 初期化
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // ✅ 検索キーワードは "MADTOWN" 固定。ただし複数回検索で補足範囲を広げる
-    const queries = [
-      "MADTOWN",
-      "MADTOWN 切り抜き",
-      "MADTOWN Shorts",
-    ];
+    // 🎥 チャンネル一覧を取得
+    const { data: channels, error: chError } = await supabase
+      .from("madtown_channels")
+      .select("id, name")
+      .eq("active", true);
 
-    const allVideos: any[] = [];
+    if (chError) throw chError;
+    if (!channels?.length) throw new Error("有効なチャンネルが存在しません。");
+
+    console.log(`📡 対象チャンネル: ${channels.length} 件`);
+
     const now = new Date().toISOString();
+    let totalInserted = 0;
 
-    // ⏱ ISO8601 → 秒数変換ユーティリティ
-    function parseDuration(iso: string): number {
+    const parseDuration = (iso: string): number => {
       const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
       if (!m) return 0;
       const h = parseInt(m[1] || "0");
       const min = parseInt(m[2] || "0");
       const s = parseInt(m[3] || "0");
       return h * 3600 + min * 60 + s;
-    }
+    };
 
-    // 🧭 検索実行（複数クエリで重複排除）
-    const seen = new Set<string>();
+    for (const ch of channels) {
+      console.log(`🎬 チャンネル処理中: ${ch.name} (${ch.id})`);
+      let nextPageToken: string | undefined = undefined;
 
-    for (const q of queries) {
-      const searchRes = await yt.search.list({
-        part: ["id", "snippet"],
-        q,
-        type: ["video"],
-        maxResults: 50,
-        order: "date",
-        publishedAfter: "2025-10-01T00:00:00Z",
-      });
+      do {
+        const searchRes = (await yt.search.list({
+          part: ["id"],
+          channelId: ch.id!,
+          type: ["video"],
+          maxResults: MAX_RESULTS,
+          order: "date",
+          pageToken: nextPageToken,
+        })) as unknown as { data: youtube_v3.Schema$SearchListResponse };
 
-      const ids = searchRes.data.items
-        ?.map((v) => v.id?.videoId)
-        .filter(Boolean)
-        .filter((id) => !seen.has(id!));
+        const ids =
+          searchRes.data.items
+            ?.map((v) => v.id?.videoId)
+            .filter(Boolean) as string[];
 
-      if (!ids?.length) continue;
-      ids.forEach((id) => seen.add(id!));
+        if (!ids?.length) break;
 
-      // 詳細情報を取得
-      const statsRes = await yt.videos.list({
-        part: ["statistics", "snippet", "contentDetails"],
-        id: ids.join(","),
-      });
+        // ✅ 修正点：`id` を string ではなく string[] で渡す
+        const statsRes = (await yt.videos.list({
+          part: ["statistics", "snippet", "contentDetails"],
+          id: ids, // ← join(",")ではなく配列として渡す
+        })) as unknown as { data: youtube_v3.Schema$VideoListResponse };
 
-      const videos =
-        statsRes.data.items
-          ?.map((v) => {
-            const durationSec = parseDuration(v.contentDetails?.duration || "PT0S");
-
-            // ⛔ 長尺動画は除外（>1時間）
-            if (durationSec > 3600) return null;
-
-            return {
+        const videos =
+          statsRes.data.items
+            ?.filter((v) => {
+              const duration = v.contentDetails?.duration || "";
+              const durationSec = parseDuration(duration);
+              const liveState = v.snippet?.liveBroadcastContent;
+              return (
+                durationSec > 0 &&
+                durationSec <= 3600 &&
+                liveState === "none"
+              );
+            })
+            .map((v) => ({
               id: v.id!,
               title: v.snippet?.title || "",
               channel_name: v.snippet?.channelTitle || "",
@@ -82,29 +88,25 @@ export async function GET() {
               like_count: parseInt(v.statistics?.likeCount || "0"),
               published_at: v.snippet?.publishedAt,
               thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
-              duration: v.contentDetails?.duration || "PT0S",
+              duration: v.contentDetails?.duration || "",
+              is_short_final: false,
               season: "2025-10",
               updated_at: now,
-            };
-          })
-          .filter(Boolean) || [];
+            })) || [];
 
-      allVideos.push(...videos);
+        if (videos.length > 0) {
+          const { error } = await supabase.from("videos").upsert(videos);
+          if (error) throw error;
+          totalInserted += videos.length;
+          console.log(`✅ ${ch.name}: ${videos.length} 件追加 (${totalInserted} 件累計)`);
+        }
+
+        nextPageToken = searchRes.data.nextPageToken ?? undefined;
+      } while (nextPageToken);
     }
 
-    if (allVideos.length === 0) {
-      return NextResponse.json({ ok: false, message: "No valid videos found" });
-    }
-
-    // 💾 Supabase UPSERT
-    const { error } = await supabase.from("videos").upsert(allVideos);
-    if (error) throw error;
-
-    return NextResponse.json({
-      ok: true,
-      updated: allVideos.length,
-      timestamp: now,
-    });
+    console.log(`🎉 fetch-videos 完了: ${totalInserted} 件`);
+    return NextResponse.json({ ok: true, inserted: totalInserted });
   } catch (error: any) {
     console.error("❌ fetch-videos error:", error);
     return NextResponse.json(
