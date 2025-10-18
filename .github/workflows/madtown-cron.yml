@@ -3,30 +3,36 @@ name: MADTOWN CLIPS Cron Jobs
 
 on:
   schedule:
-    # 毎時0分に動画取得
-    - cron: "0 * * * *"
-    # 毎時15分にショート判定
-    - cron: "15 * * * *"
-    # 6時間ごとに削除チェック
+    # 🔄 新着動画取得：6時間ごと（UTC）
+    # JSTでは 09:00 / 15:00 / 21:00 / 03:00 に実行
     - cron: "0 */6 * * *"
-  workflow_dispatch:  # 手動実行ボタン
+
+    # 🎞️ ショート動画判定：3時間ごと（UTC）
+    # JSTでは 09:15 / 12:15 / 15:15 / 18:15 / 21:15 / 00:15 / 03:15 / 06:15 に実行
+    - cron: "15 */3 * * *"
+
+    # 🧹 削除チェック：6時間ごと
+    - cron: "0 */6 * * *"
+
+  # ▶ 手動実行も可能
+  workflow_dispatch:
 
 jobs:
   run-crons:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🔍 Fetch Videos Diff
+      - name: 🔍 Fetch Videos Diff（6時間ごと）
         run: |
           echo "Running fetch-videos-diff..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-diff
 
-      - name: 🧩 Update Shorts
+      - name: 🧩 Update Shorts（3時間ごと）
         run: |
           echo "Running update-is-short-html..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/update-is-short-html
 
-      - name: 🧹 Cleanup Deleted Videos
+      - name: 🧹 Cleanup Deleted Videos（6時間ごと）
         run: |
           echo "Running cleanup-deleted-videos..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/cleanup-deleted-videos
