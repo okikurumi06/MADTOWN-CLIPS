@@ -1,13 +1,16 @@
 {
-  "functions": {
-    "api/fetch-videos-diff": {
+  "crons": [
+    {
+      "path": "/api/fetch-videos-diff",
       "schedule": "0 * * * *"
     },
-    "api/update-is-short-html": {
+    {
+      "path": "/api/update-is-short-html",
       "schedule": "15 * * * *"
     },
-    "api/cleanup-deleted-videos": {
+    {
+      "path": "/api/cleanup-deleted-videos",
       "schedule": "0 */6 * * *"
     }
-  }
+  ]
 }
