@@ -60,17 +60,16 @@ export async function GET() {
       console.log(`📡 チャンネル取得中: ${ch.name} (${ch.id})`);
 
       while (true) {
-        // ✅ 型の修正版：GaxiosResponseでラップされた型を明示
-        const searchRes: import("gaxios").GaxiosResponse<youtube_v3.Schema$SearchListResponse> =
-          await yt.search.list({
-            part: ["id"],
-            channelId: ch.id!,
-            type: ["video"],
-            maxResults: MAX_RESULTS,
-            order: "date",
-            publishedAfter,
-            pageToken: nextPageToken,
-          });
+        // ✅ 型は any にアサートしてHTTP1/2両対応
+        const searchRes = (await yt.search.list({
+          part: ["id"],
+          channelId: ch.id!,
+          type: ["video"],
+          maxResults: MAX_RESULTS,
+          order: "date",
+          publishedAfter,
+          pageToken: nextPageToken,
+        })) as unknown as { data: youtube_v3.Schema$SearchListResponse };
 
         const ids =
           searchRes.data.items
@@ -79,11 +78,10 @@ export async function GET() {
 
         if (!ids?.length) break;
 
-        const statsRes: import("gaxios").GaxiosResponse<youtube_v3.Schema$VideoListResponse> =
-          await yt.videos.list({
-            part: ["snippet", "statistics", "contentDetails"],
-            id: ids, // ✅ join不要
-          });
+        const statsRes = (await yt.videos.list({
+          part: ["snippet", "statistics", "contentDetails"],
+          id: ids,
+        })) as unknown as { data: youtube_v3.Schema$VideoListResponse };
 
         const videos =
           statsRes.data.items
