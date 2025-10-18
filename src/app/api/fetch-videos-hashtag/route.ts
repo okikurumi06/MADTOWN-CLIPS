@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 export async function GET() {
-  console.log("🔍 MADTOWNハッシュタグ動画収集開始");
+  console.log("🔍 MADTOWN関連動画のタイトル検索開始");
 
   const yt = google.youtube({
     version: "v3",
@@ -36,25 +36,32 @@ export async function GET() {
 
   try {
     do {
-      // 🎯 MADTOWN 関連タグを含む動画を検索
       const searchRes = (await yt.search.list({
-        part: ["id"],
+        part: ["id", "snippet"],
         q: query,
         type: ["video"],
         order: "date",
         maxResults: 25,
         pageToken: nextPageToken,
-        publishedAfter: "2025-10-01T00:00:00Z", // 最近のみに限定
+        publishedAfter: "2025-10-01T00:00:00Z",
       })) as unknown as { data: youtube_v3.Schema$SearchListResponse };
 
-      const ids =
-        searchRes.data.items
-          ?.map((v) => v.id?.videoId)
-          .filter(Boolean) as string[];
+      // 🎯 タイトルに MADTOWN/madtown が含まれているものだけ残す
+      const filtered = searchRes.data.items?.filter((v) => {
+        const title = v.snippet?.title?.toLowerCase() || "";
+        return title.includes("madtown");
+      });
 
-      if (!ids?.length) break;
+      const ids = filtered
+        ?.map((v) => v.id?.videoId)
+        .filter(Boolean) as string[];
 
-      // 詳細取得
+      if (!ids?.length) {
+        nextPageToken = searchRes.data.nextPageToken ?? undefined;
+        continue;
+      }
+
+      // 📊 詳細データ取得
       const statsRes = (await yt.videos.list({
         part: ["snippet", "statistics", "contentDetails"],
         id: ids,
@@ -64,7 +71,8 @@ export async function GET() {
         statsRes.data.items
           ?.filter((v) => {
             const dur = parseDuration(v.contentDetails?.duration || "");
-            return dur > 0 && dur <= 3600 && v.snippet?.liveBroadcastContent === "none";
+            const live = v.snippet?.liveBroadcastContent;
+            return dur > 0 && dur <= 3600 && live === "none";
           })
           .map((v) => ({
             id: v.id!,
@@ -90,7 +98,7 @@ export async function GET() {
       nextPageToken = searchRes.data.nextPageToken ?? undefined;
     } while (nextPageToken);
 
-    console.log(`🎉 MADTOWNハッシュタグ収集完了: ${totalInserted}件`);
+    console.log(`🎉 MADTOWNタイトル検索完了: ${totalInserted}件`);
     return NextResponse.json({ ok: true, inserted: totalInserted });
   } catch (error: any) {
     console.error("❌ fetch-videos-hashtag error:", error);
