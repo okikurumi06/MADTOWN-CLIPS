@@ -5,87 +5,89 @@ import { google } from "googleapis";
 
 export const runtime = "nodejs";
 
-/** ISO8601 duration → 秒数変換 */
-function parseDurationToSeconds(duration: string): number {
-  const match = duration.match(/PT(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-  const minutes = parseInt(match[1] || "0", 10);
-  const seconds = parseInt(match[2] || "0", 10);
-  return minutes * 60 + seconds;
-}
-
 export async function GET() {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+  console.log("🔁 Shorts判定再計算開始");
 
-    const yt = google.youtube({
-      version: "v3",
-      auth: process.env.YT_API_KEY,
-    });
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-    console.log("🔄 正確なショート判定を実行中...");
+  const yt = google.youtube({
+    version: "v3",
+    auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
+  });
 
-    // 🎯 まず動画IDリストを取得
-    const { data: videos, error } = await supabase
-      .from("videos")
-      .select("id, duration, is_shorts_playable, title");
-    if (error) throw error;
+  // 🎥 全動画取得（is_short_final = false のみ）
+  const { data: videos, error } = await supabase
+    .from("videos")
+    .select("id, title, duration, is_short_final")
+    .eq("is_short_final", false);
 
-    const updates: { id: string; is_short_final: boolean }[] = [];
+  if (error) throw error;
+  if (!videos?.length)
+    return NextResponse.json({ ok: true, updated: 0, msg: "No videos found" });
 
-    // 🔁 バッチ処理（50件ずつ YouTube API 呼び出し）
-    for (let i = 0; i < videos.length; i += 50) {
-      const batch = videos.slice(i, i + 50);
-      const ids = batch.map((v) => v.id).join(",");
+  console.log(`🎬 対象: ${videos.length} 件`);
 
+  // ISO8601 → 秒変換
+  function parseDuration(iso: string | null): number {
+    if (!iso) return 0;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    const h = parseInt(m[1] || "0");
+    const min = parseInt(m[2] || "0");
+    const s = parseInt(m[3] || "0");
+    return h * 3600 + min * 60 + s;
+  }
+
+  const updates: { id: string; is_short_final: boolean }[] = [];
+
+  // 🔁 10件ずつ処理
+  const chunkSize = 10;
+  for (let i = 0; i < videos.length; i += chunkSize) {
+    const batch = videos.slice(i, i + chunkSize);
+    const ids = batch.map((v) => v.id); // ← joinしない。配列のまま渡す
+
+    try {
       const res = await yt.videos.list({
         part: ["contentDetails", "player", "snippet"],
-        id: ids,
+        id: ids, // ✅ string[] を渡すよう修正
       });
 
-      for (const item of res.data.items || []) {
-        const seconds = parseDurationToSeconds(item.contentDetails?.duration || "");
-        const isPlayable = batch.find((v) => v.id === item.id)?.is_shorts_playable === true;
-        const title = batch.find((v) => v.id === item.id)?.title || "";
+      const items = res.data.items || [];
 
-        // 🎯 判定ロジック
+      for (const item of items) {
+        const duration = item.contentDetails?.duration || "";
+        const durationSec = parseDuration(duration);
+        const title = item.snippet?.title?.toLowerCase() || "";
+
         const isShort =
-          seconds <= 61 ||
-          isPlayable ||
-          title.toLowerCase().includes("#shorts") ||
-          (item.player?.embedHtml?.includes("shorts-player") ?? false);
+          durationSec > 0 &&
+          durationSec <= 65 &&
+          (title.includes("short") || title.includes("ショート"));
 
-        updates.push({ id: item.id!, is_short_final: isShort });
+        if (isShort) {
+          updates.push({ id: item.id!, is_short_final: true });
+          console.log(`🎯 ${item.id} → Shorts (${durationSec}s)`);
+        }
       }
+    } catch (err) {
+      console.warn("⚠️ API取得失敗:", err);
     }
-
-    // 🧾 Supabaseを更新
-    for (const u of updates) {
-      const { error: updateErr } = await supabase
-        .from("videos")
-        .update({ is_short_final: u.is_short_final })
-        .eq("id", u.id);
-      if (updateErr) throw updateErr;
-    }
-
-    const shortCount = updates.filter((u) => u.is_short_final).length;
-    const normalCount = updates.length - shortCount;
-
-    console.log(`✅ is_short_final 更新完了: ${updates.length}件`);
-    return NextResponse.json({
-      ok: true,
-      total: updates.length,
-      short_videos: shortCount,
-      normal_videos: normalCount,
-    });
-  } catch (error: any) {
-    console.error("❌ update-is-short error:", error);
-    return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 500 }
-    );
   }
+
+  // 🔄 Supabase更新
+  let updatedCount = 0;
+  for (const u of updates) {
+    const { error: updateErr } = await supabase
+      .from("videos")
+      .update({ is_short_final: u.is_short_final })
+      .eq("id", u.id);
+
+    if (!updateErr) updatedCount++;
+  }
+
+  console.log(`✅ 更新完了: ${updatedCount} 件`);
+  return NextResponse.json({ ok: true, updated: updatedCount });
 }
