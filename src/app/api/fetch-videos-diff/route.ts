@@ -4,15 +4,11 @@ import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-const MAX_RESULTS = 25;
+const MAX_RESULTS = 5; // 🔻 25→5件に制限してquota節約
+const ACTIVE_WITHIN_DAYS = 14; // 最近2週間以内に更新のあるチャンネルのみ対象
 
 export async function GET() {
   try {
-    const yt = google.youtube({
-      version: "v3",
-      auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
-    });
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -32,15 +28,19 @@ export async function GET() {
     const now = new Date().toISOString();
     console.log(`📺 差分取得開始: ${publishedAfter} 以降`);
 
-    // 🧭 有効チャンネルを取得
+    // 🧭 最近アクティブなチャンネルを取得
+    const since = new Date();
+    since.setDate(since.getDate() - ACTIVE_WITHIN_DAYS);
+
     const { data: channels, error: chError } = await supabase
       .from("madtown_channels")
-      .select("id, name")
-      .eq("active", true);
+      .select("id, name, last_checked")
+      .eq("active", true)
+      .or(`last_checked.is.null,last_checked.gt.${since.toISOString()}`);
 
     if (chError) throw chError;
     if (!channels?.length)
-      throw new Error("有効なチャンネルが登録されていません。");
+      throw new Error("最近アクティブなチャンネルがありません。");
 
     console.log(`📡 対象チャンネル: ${channels.length} 件`);
 
@@ -55,72 +55,91 @@ export async function GET() {
       return h * 3600 + min * 60 + s;
     };
 
+    // 🔁 APIキー自動フェイルオーバー
+    const keys = [
+      process.env.YT_API_KEY,
+      process.env.YT_API_KEY_BACKUP,
+      process.env.YT_API_KEY_BACKUP_2,
+    ].filter(Boolean) as string[];
+
+    let yt = google.youtube({ version: "v3", auth: keys[0] });
+
+    const trySearch = async (fn: () => Promise<any>) => {
+      for (let i = 0; i < keys.length; i++) {
+        try {
+          yt = google.youtube({ version: "v3", auth: keys[i] });
+          return await fn();
+        } catch (e: any) {
+          if (e.code === 403 && e.message.includes("quota")) {
+            console.warn(`⚠️ APIキー${i + 1}でquota超過、次のキーに切替`);
+            continue;
+          }
+          throw e;
+        }
+      }
+      throw new Error("すべてのAPIキーでquota制限に達しました。");
+    };
+
     for (const ch of channels) {
-      let nextPageToken: string | undefined = undefined;
       console.log(`📡 チャンネル取得中: ${ch.name} (${ch.id})`);
 
-      while (true) {
-        const searchRes = (await yt.search.list({
+      const searchRes = await trySearch(() =>
+        yt.search.list({
           part: ["id"],
           channelId: ch.id!,
           type: ["video"],
           maxResults: MAX_RESULTS,
           order: "date",
           publishedAfter,
-          pageToken: nextPageToken,
-        })) as unknown as { data: youtube_v3.Schema$SearchListResponse };
+        })
+      );
 
-        const ids =
-          searchRes.data.items
-            ?.map((v) => v.id?.videoId)
-            .filter(Boolean) as string[];
+      const ids =
+        searchRes.data.items
+          ?.map((v: any) => v.id?.videoId)
+          .filter(Boolean) as string[];
 
-        if (!ids?.length) break;
+      if (!ids?.length) continue;
 
-        const statsRes = (await yt.videos.list({
+      const statsRes = await trySearch(() =>
+        yt.videos.list({
           part: ["snippet", "statistics", "contentDetails"],
           id: ids,
-        })) as unknown as { data: youtube_v3.Schema$VideoListResponse };
+        })
+      );
 
-        const videos =
-          statsRes.data.items
-            ?.filter((v) => {
-              const duration = v.contentDetails?.duration || "";
-              const durationSec = parseDuration(duration);
-              const liveState = v.snippet?.liveBroadcastContent;
-              return (
-                durationSec > 0 &&
-                durationSec <= 3600 &&
-                liveState === "none"
-              );
-            })
-            .map((v) => ({
-              id: v.id!,
-              title: v.snippet?.title || "",
-              channel_name: v.snippet?.channelTitle || "",
-              view_count: parseInt(v.statistics?.viewCount || "0"),
-              like_count: parseInt(v.statistics?.likeCount || "0"),
-              published_at: v.snippet?.publishedAt,
-              thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
-              duration: v.contentDetails?.duration || "",
-              is_short_final: false,
-              season: "2025-10",
-              updated_at: now,
-            })) || [];
+      const videos =
+        statsRes.data.items
+          ?.filter((v: any) => {
+            const duration = v.contentDetails?.duration || "";
+            const durationSec = parseDuration(duration);
+            const liveState = v.snippet?.liveBroadcastContent;
+            return durationSec > 0 && durationSec <= 3600 && liveState === "none";
+          })
+          .map((v: any) => ({
+            id: v.id!,
+            title: v.snippet?.title || "",
+            channel_name: v.snippet?.channelTitle || "",
+            view_count: parseInt(v.statistics?.viewCount || "0"),
+            like_count: parseInt(v.statistics?.likeCount || "0"),
+            published_at: v.snippet?.publishedAt,
+            thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
+            duration: v.contentDetails?.duration || "",
+            is_short_final: false,
+            season: "2025-10",
+            updated_at: now,
+          })) || [];
 
-        if (videos.length > 0) {
-          const { error } = await supabase.from("videos").upsert(videos);
-          if (error) throw error;
-          totalInserted += videos.length;
-          console.log(
-            `✅ ${ch.name}: ${videos.length} 件追加 (${totalInserted} 件累計)`
-          );
-        }
+      if (videos.length > 0) {
+        const { error } = await supabase.from("videos").upsert(videos);
+        if (error) throw error;
+        totalInserted += videos.length;
+        console.log(`✅ ${ch.name}: ${videos.length} 件追加 (${totalInserted} 累計)`);
 
-        // 🩹 nullをundefinedに変換して型安全に代入
-        nextPageToken = searchRes.data.nextPageToken ?? undefined;
-
-        if (!nextPageToken) break;
+        await supabase
+          .from("madtown_channels")
+          .update({ last_checked: now })
+          .eq("id", ch.id);
       }
     }
 
