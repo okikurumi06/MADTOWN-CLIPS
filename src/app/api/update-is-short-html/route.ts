@@ -1,32 +1,30 @@
 // src/app/api/update-is-short-html/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { google } from "googleapis";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  console.log("🔍 Shorts判定更新開始（5分超除外版）");
+  console.log("🔍 Shorts判定更新開始（未判定のみ・5分超除外版）");
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const yt = google.youtube({
-    version: "v3",
-    auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
-  });
-
-  // ✅ is_short_final=false のみ取得
+  // ✅ is_short_final が null（未判定）のみ取得
   const { data: videos, error } = await supabase
     .from("videos")
     .select("id, title, duration, is_short_final")
-    .eq("is_short_final", false);
+    .is("is_short_final", null);
 
   if (error) throw error;
   if (!videos?.length)
-    return NextResponse.json({ ok: true, updated: 0, msg: "No unverified videos" });
+    return NextResponse.json({
+      ok: true,
+      updated: 0,
+      msg: "No unverified videos (すべて判定済み)",
+    });
 
   // ⏱ ISO8601 → 秒変換
   const parseDuration = (iso: string | null): number => {
@@ -117,10 +115,10 @@ export async function GET() {
 
           // ✅ 判定
           const isShort = score >= 2;
-          if (isShort) {
-            updates.push({ id: v.id, is_short_final: true });
-            console.log(`✅ ${v.id} → Shorts (${score}点) [${reason.join(", ")}]`);
-          }
+          updates.push({ id: v.id, is_short_final: isShort });
+          console.log(
+            `${isShort ? "✅" : "🧱"} ${v.id} → ${isShort ? "Shorts" : "通常"} (${score}点) [${reason.join(", ")}]`
+          );
         } catch (err) {
           console.warn(`⚠️ ${v.id} 判定失敗:`, err);
         }
@@ -128,7 +126,7 @@ export async function GET() {
     );
   }
 
-  // 🔄 DB反映部分のみ修正
+  // 🔄 DB更新
   let updatedCount = 0;
   for (const u of updates) {
     const { error: updateErr } = await supabase
