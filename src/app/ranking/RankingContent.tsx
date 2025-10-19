@@ -265,7 +265,7 @@ export default function RankingContent() {
         © 2025{" "}
         <span className="font-medium">okikurumi</span> ·{" "}
         <a
-          href="https://github.com/okikurumi/madtown-clips"
+          href="https://github.com/okikurumi06/madtown-clips"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-gray-700 transition"
