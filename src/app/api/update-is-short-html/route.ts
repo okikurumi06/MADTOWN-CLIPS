@@ -6,7 +6,7 @@ import { logQuota } from "@/src/lib/logQuota";
 export const runtime = "nodejs";
 
 export async function GET() {
-  console.log("🔍 Shorts判定更新開始（未判定のみ・5分超除外版）");
+  console.log("🔍 Shorts判定更新開始（未判定のみ・5分超はfalse扱い）");
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,9 +48,11 @@ export async function GET() {
       chunk.map(async (v) => {
         try {
           const durationSec = parseDuration(v.duration);
-          // 🚫 5分以上の動画はスキップ
+
+          // 🚫 5分以上の動画はスキップではなく false に設定
           if (durationSec > 300) {
-            console.log(`⏩ ${v.id} は ${Math.floor(durationSec / 60)}分 → スキップ`);
+            console.log(`⏩ ${v.id} は ${Math.floor(durationSec / 60)}分 → 通常動画として false`);
+            updates.push({ id: v.id, is_short_final: false });
             return;
           }
 
@@ -62,6 +64,7 @@ export async function GET() {
           const htmlRes = await fetch(`https://www.youtube.com/watch?v=${v.id}`, {
             headers: { "User-Agent": "Mozilla/5.0" },
           });
+
           if (htmlRes.ok) {
             const html = await htmlRes.text();
 
@@ -114,7 +117,7 @@ export async function GET() {
             reason.push("短時間");
           }
 
-          // ✅ 判定
+          // ✅ 判定結果
           const isShort = score >= 2;
           updates.push({ id: v.id, is_short_final: isShort });
           console.log(
@@ -122,6 +125,8 @@ export async function GET() {
           );
         } catch (err) {
           console.warn(`⚠️ ${v.id} 判定失敗:`, err);
+          // 判定失敗時も null のまま放置せず false にする
+          updates.push({ id: v.id, is_short_final: false });
         }
       })
     );
@@ -141,7 +146,8 @@ export async function GET() {
       updatedCount++;
     }
   }
-  // logのDB記録
+
+  // 📊 クォータ記録
   await logQuota("update-is-short-html", 20);
 
   console.log(`✅ 更新完了: ${updatedCount} 件`);
