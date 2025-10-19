@@ -4,7 +4,7 @@ import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-const MAX_RESULTS = 5; // 🔻 25→5件に制限してquota節約
+const MAX_RESULTS = 5; // quota節約
 const ACTIVE_WITHIN_DAYS = 14; // 最近2週間以内に更新のあるチャンネルのみ対象
 
 export async function GET() {
@@ -125,7 +125,7 @@ export async function GET() {
             published_at: v.snippet?.publishedAt,
             thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
             duration: v.contentDetails?.duration || "",
-            is_short_final: false,
+            // ❌ is_short_final は書かない（新規は自動で NULL）
             season: "2025-10",
             updated_at: now,
           })) || [];

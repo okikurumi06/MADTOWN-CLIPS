@@ -8,15 +8,35 @@ export const runtime = "nodejs";
 export async function GET() {
   console.log("🔍 MADTOWN関連動画のタイトル検索開始");
 
-  const yt = google.youtube({
-    version: "v3",
-    auth: process.env.YT_API_KEY || process.env.YT_API_KEY_BACKUP,
-  });
-
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  // 🔑 YouTube APIキーをフェイルオーバー対応に
+  const keys = [
+    process.env.YT_API_KEY,
+    process.env.YT_API_KEY_BACKUP,
+    process.env.YT_API_KEY_BACKUP_2,
+  ].filter(Boolean) as string[];
+
+  let yt = google.youtube({ version: "v3", auth: keys[0] });
+
+  const trySearch = async (fn: () => Promise<any>) => {
+    for (let i = 0; i < keys.length; i++) {
+      try {
+        yt = google.youtube({ version: "v3", auth: keys[i] });
+        return await fn();
+      } catch (e: any) {
+        if (e.code === 403 && e.message?.includes("quota")) {
+          console.warn(`⚠️ APIキー${i + 1}でquota超過、次のキーに切替`);
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new Error("すべてのAPIキーでquota制限に達しました。");
+  };
 
   const now = new Date().toISOString();
   const query =
@@ -36,15 +56,17 @@ export async function GET() {
 
   try {
     do {
-      const searchRes = (await yt.search.list({
-        part: ["id", "snippet"],
-        q: query,
-        type: ["video"],
-        order: "date",
-        maxResults: 25,
-        pageToken: nextPageToken,
-        publishedAfter: "2025-10-01T00:00:00Z",
-      })) as unknown as { data: youtube_v3.Schema$SearchListResponse };
+      const searchRes = (await trySearch(() =>
+        yt.search.list({
+          part: ["id", "snippet"],
+          q: query,
+          type: ["video"],
+          order: "date",
+          maxResults: 10, // 🔻 25→10に減らしてquota節約
+          pageToken: nextPageToken,
+          publishedAfter: "2025-10-01T00:00:00Z",
+        })
+      )) as unknown as { data: youtube_v3.Schema$SearchListResponse };
 
       // 🎯 タイトルに MADTOWN/madtown が含まれているものだけ残す
       const filtered = searchRes.data.items?.filter((v) => {
@@ -62,10 +84,12 @@ export async function GET() {
       }
 
       // 📊 詳細データ取得
-      const statsRes = (await yt.videos.list({
-        part: ["snippet", "statistics", "contentDetails"],
-        id: ids,
-      })) as unknown as { data: youtube_v3.Schema$VideoListResponse };
+      const statsRes = (await trySearch(() =>
+        yt.videos.list({
+          part: ["snippet", "statistics", "contentDetails"],
+          id: ids,
+        })
+      )) as unknown as { data: youtube_v3.Schema$VideoListResponse };
 
       const videos =
         statsRes.data.items
@@ -83,7 +107,7 @@ export async function GET() {
             published_at: v.snippet?.publishedAt,
             thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
             duration: v.contentDetails?.duration || "",
-            is_short_final: false,
+            // ❌ is_short_finalは指定しない → NULL扱い（未判定）
             season: "2025-10",
             updated_at: now,
           })) || [];
