@@ -6,9 +6,5 @@
       "src": "src/package.json",
       "use": "@vercel/next"
     }
-  ],
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD .",
-  "rootDirectory": "src"
+  ]
 }
