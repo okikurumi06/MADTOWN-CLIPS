@@ -1,13 +1,14 @@
 {
   "version": 2,
+  "framework": "nextjs",
   "builds": [
     {
-      "src": "package.json",
+      "src": "src/package.json",
       "use": "@vercel/next"
     }
   ],
-  "framework": "nextjs",
   "buildCommand": "next build",
   "outputDirectory": ".next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ."
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD .",
+  "rootDirectory": "src"
 }
