@@ -75,8 +75,15 @@ export default function RankingContent() {
 
   // ページ番号ナビの生成
   const visiblePages = 7;
-  const startPage = Math.max(1, page - Math.floor(visiblePages / 2));
-  const endPage = Math.min(totalPages, startPage + visiblePages - 1);
+
+  // ✅ 1から始まるように修正
+  let startPage = Math.max(1, page - Math.floor(visiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + visiblePages - 1);
+
+  // ← 最後の方でページ数が少ないときに右端寄せされるよう調整
+  if (endPage - startPage + 1 < visiblePages) {
+    startPage = Math.max(1, endPage - visiblePages + 1);
+  }
 
   const goToPage = (num: number) => {
     if (num >= 1 && num <= totalPages) {
