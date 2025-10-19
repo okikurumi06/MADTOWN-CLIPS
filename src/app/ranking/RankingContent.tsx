@@ -27,8 +27,7 @@ export default function RankingContent() {
     (searchParams.get("type") as "all" | "short" | "normal") || "all"
   );
   const [order, setOrder] = useState<"view_count" | "published_at">(
-    (searchParams.get("order") as "view_count" | "published_at") ||
-      "view_count"
+    (searchParams.get("order") as "view_count" | "published_at") || "view_count"
   );
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
@@ -44,9 +43,7 @@ export default function RankingContent() {
       order,
       q: query,
       page: String(page),
-      ...Object.fromEntries(
-        Object.entries(params).map(([k, v]) => [k, String(v)])
-      ),
+      ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
     });
     router.replace(`/ranking?${sp.toString()}`);
   };
@@ -84,7 +81,7 @@ export default function RankingContent() {
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 py-8 dark:bg-gray-900 dark:text-white min-h-screen">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
         MADTOWN 切り抜き動画ランキング & 検索
       </h1>
@@ -96,7 +93,8 @@ export default function RankingContent() {
           placeholder="タイトルやチャンネル名で検索"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="border rounded-lg px-4 py-2 w-full sm:w-80 md:w-96"
+          className="border rounded-lg px-4 py-2 w-full sm:w-80 md:w-96
+                     bg-white dark:bg-gray-800 dark:text-white"
         />
         <button
           onClick={() => {
@@ -104,7 +102,9 @@ export default function RankingContent() {
             updateURL({ q: query, page: 1 });
             fetchData();
           }}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition w-full sm:w-auto"
+          className="px-4 py-2 rounded-lg transition w-full sm:w-auto
+                     bg-purple-600 text-white hover:bg-purple-700
+                     dark:bg-purple-500 dark:hover:bg-purple-400 dark:text-white"
         >
           検索
         </button>
@@ -126,8 +126,8 @@ export default function RankingContent() {
             }}
             className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
               type === item.key
-                ? "bg-purple-600 text-white"
-                : "bg-gray-100 hover:bg-gray-200"
+                ? "bg-purple-600 text-white dark:bg-purple-500"
+                : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
             }`}
           >
             {item.label}
@@ -152,8 +152,8 @@ export default function RankingContent() {
               }}
               className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
                 period === p.key
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-100 hover:bg-gray-200"
+                  ? "bg-purple-600 text-white dark:bg-purple-500"
+                  : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
             >
               {p.label}
@@ -162,7 +162,7 @@ export default function RankingContent() {
         </div>
       )}
 
-      {/* 📊 並び替えボタン */}
+      {/* 📊 並び替え */}
       <div className="flex justify-center mb-6 gap-2 sm:gap-3 flex-wrap">
         {[
           { key: "view_count", label: "再生数順" },
@@ -177,8 +177,8 @@ export default function RankingContent() {
             }}
             className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
               order === o.key
-                ? "bg-purple-600 text-white"
-                : "bg-gray-100 hover:bg-gray-200"
+                ? "bg-purple-600 text-white dark:bg-purple-500"
+                : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
             }`}
           >
             {o.label}
@@ -188,7 +188,7 @@ export default function RankingContent() {
 
       {/* 📺 コンテンツ */}
       {loading ? (
-        <p className="text-center text-gray-500">読み込み中...</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">読み込み中...</p>
       ) : videos.length === 0 ? (
         <p className="text-center text-gray-400">該当する動画がありません。</p>
       ) : (
@@ -203,28 +203,30 @@ export default function RankingContent() {
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition bg-white"
+              className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition
+                         bg-white dark:bg-gray-800"
             >
               <img
                 src={v.thumbnail_url}
                 alt={v.title}
-                className="w-full aspect-[16/9] sm:aspect-video object-cover"
+                className="w-full aspect-[16/9] object-cover"
               />
               <div className="p-3 sm:p-4">
                 {!query && order === "view_count" && (
-                  <p className="text-xs sm:text-sm text-gray-400 font-semibold mb-1">
+                  <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-300 font-semibold mb-1">
                     #{(page - 1) * LIMIT + i + 1}
                   </p>
                 )}
-                <h2 className="font-semibold text-gray-800 line-clamp-2 text-sm sm:text-base">
+                <h2 className="font-semibold text-gray-800 dark:text-gray-100 line-clamp-2 text-sm sm:text-base">
                   {v.title}
                 </h2>
-                <p className="text-xs sm:text-sm text-gray-600 mt-1">{v.channel_name}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  👁 {v.view_count.toLocaleString()}　👍{" "}
-                  {v.like_count.toLocaleString()}
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {v.channel_name}
                 </p>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  👁 {v.view_count.toLocaleString()}　👍 {v.like_count.toLocaleString()}
+                </p>
+                <p className="text-[11px] sm:text-xs text-gray-400 dark:text-gray-400 mt-1">
                   {new Date(v.published_at).toLocaleDateString("ja-JP")}
                 </p>
 
@@ -239,23 +241,28 @@ export default function RankingContent() {
         </div>
       )}
 
-      {/* 📄 ページ番号ナビ */}
+      {/* 📄 ページネーション */}
       {totalPages > 1 && (
-        <div className="flex flex-wrap justify-center items-center gap-2 mt-10 select-none">
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-10 mb-24 select-none">
           <button
             onClick={() => goToPage(1)}
             disabled={page === 1}
             className={`px-2 py-1 text-lg ${
-              page === 1 ? "text-gray-400 cursor-not-allowed" : "hover:text-gray-800"
+              page === 1
+                ? "text-gray-400 cursor-not-allowed"
+                : "hover:text-gray-800 dark:hover:text-gray-100"
             }`}
           >
             «
           </button>
+
           <button
             onClick={() => goToPage(page - 1)}
             disabled={page === 1}
             className={`px-2 py-1 text-lg ${
-              page === 1 ? "text-gray-400 cursor-not-allowed" : "hover:text-gray-800"
+              page === 1
+                ? "text-gray-400 cursor-not-allowed"
+                : "hover:text-gray-800 dark:hover:text-gray-100"
             }`}
           >
             ‹
@@ -267,8 +274,8 @@ export default function RankingContent() {
               onClick={() => goToPage(num)}
               className={`px-3 py-1 rounded-md text-sm font-medium ${
                 num === page
-                  ? "bg-purple-600 text-white"
-                  : "text-gray-700 hover:bg-gray-100"
+                  ? "bg-purple-600 text-white dark:bg-purple-500"
+                  : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               }`}
             >
               {num}
@@ -281,18 +288,19 @@ export default function RankingContent() {
             className={`px-2 py-1 text-lg ${
               page === totalPages
                 ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800"
+                : "hover:text-gray-800 dark:hover:text-gray-100"
             }`}
           >
             ›
           </button>
+
           <button
             onClick={() => goToPage(totalPages)}
             disabled={page === totalPages}
             className={`px-2 py-1 text-lg ${
               page === totalPages
                 ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800"
+                : "hover:text-gray-800 dark:hover:text-gray-100"
             }`}
           >
             »
@@ -301,13 +309,13 @@ export default function RankingContent() {
       )}
 
       {/* 👇 フッター */}
-      <footer className="mt-10 mb-4 text-center text-xs sm:text-sm text-gray-500">
+      <footer className="mt-10 mb-4 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
         © 2025 <span className="font-medium">okikurumi</span> ·{" "}
         <a
           href="https://github.com/okikurumi06/madtown-clips"
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:text-gray-700 transition"
+          className="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
         >
           GitHub
         </a>
