@@ -3,41 +3,49 @@ name: MADTOWN CLIPS Cron Jobs
 
 on:
   schedule:
-    # 🎥 新着動画取得（8時間ごと）
-    - cron: "0 */8 * * *"
+    # 🎥 新着動画取得（6時間ごと）
+    - cron: "0 */6 * * *"
 
-    # 🧩 ショート動画判定（4時間ごと）
-    - cron: "15 */4 * * *"
+    # 🎞️ ショート動画判定（3時間ごと）
+    - cron: "15 */3 * * *"
 
-    # 📊 再生数・高評価更新（3時間ごと）
-    - cron: "30 */3 * * *"
+    # 📊 再生数・高評価更新（毎時）
+    - cron: "30 * * * *"
 
-    # 🧹 削除チェック（12時間ごと）
-    - cron: "45 */12 * * *"
+    # 🧹 削除チェック（6時間ごと）
+    - cron: "0 */6 * * *"
 
-  workflow_dispatch:  # 手動実行も可能
+    # 🏷️ タグ・ハッシュタグ検索（6時間ごと）
+    - cron: "45 */6 * * *"
+
+  workflow_dispatch: # 手動実行も可能
 
 jobs:
   run-crons:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🎥 Fetch Videos Diff（8時間ごと）
+      - name: 🔍 Fetch Videos Diff（6時間ごと）
         run: |
           echo "Running fetch-videos-diff..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-diff
 
-      - name: 🧩 Update Shorts（4時間ごと）
+      - name: 🏷️ Fetch Videos by Hashtag（6時間ごと）
+        run: |
+          echo "Running fetch-videos-hashtag..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-hashtag
+
+      - name: 🧩 Update Shorts（3時間ごと）
         run: |
           echo "Running update-is-short-html..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/update-is-short-html
 
-      - name: 📊 Update Stats（3時間ごと）
+      - name: 📊 Update Stats（毎時）
         run: |
           echo "Running update-stats..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/update-stats
 
-      - name: 🧹 Cleanup Deleted Videos（12時間ごと）
+      - name: 🧹 Cleanup Deleted Videos（6時間ごと）
         run: |
           echo "Running cleanup-deleted-videos..."
           curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/cleanup-deleted-videos
