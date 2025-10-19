@@ -14,6 +14,8 @@ type Video = {
   is_short_final: boolean;
 };
 
+const LIMIT = 48;
+
 export default function RankingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -30,35 +32,46 @@ export default function RankingContent() {
       "view_count"
   );
   const [query, setQuery] = useState(searchParams.get("q") || "");
+  const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
 
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const updateURL = (params: Record<string, string>) => {
+  // 📦 URL更新
+  const updateURL = (params: Record<string, string | number>) => {
     const sp = new URLSearchParams({
       period,
       type,
       order,
       q: query,
-      ...params,
+      page: String(page),
+      ...Object.fromEntries(
+        Object.entries(params).map(([k, v]) => [k, String(v)])
+      ),
     });
     router.replace(`/ranking?${sp.toString()}`);
   };
 
+  // 📡 データ取得
   const fetchData = async () => {
     setLoading(true);
+
     const endpoint = query
-      ? `/api/search?q=${encodeURIComponent(query)}&type=${type}&order=${order}`
-      : `/api/ranking?period=${period}&type=${type}&order=${order}`;
+      ? `/api/search?q=${encodeURIComponent(query)}&type=${type}&order=${order}&page=${page}`
+      : `/api/ranking?period=${period}&type=${type}&order=${order}&page=${page}&limit=${LIMIT}`;
+
     const res = await fetch(endpoint);
     const json = await res.json();
-    setVideos(json.results || []);
+
+    setVideos(json.results || json.data || []);
+    setTotalPages(json.totalPages || 1);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
-  }, [period, type, order]);
+  }, [period, type, order, page]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
@@ -77,7 +90,8 @@ export default function RankingContent() {
         />
         <button
           onClick={() => {
-            updateURL({ q: query });
+            setPage(1);
+            updateURL({ q: query, page: 1 });
             fetchData();
           }}
           className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
@@ -97,7 +111,8 @@ export default function RankingContent() {
             key={item.key}
             onClick={() => {
               setType(item.key as any);
-              updateURL({ type: item.key });
+              setPage(1);
+              updateURL({ type: item.key, page: 1 });
             }}
             className={`px-4 py-2 rounded-lg border ${
               type === item.key
@@ -110,7 +125,7 @@ export default function RankingContent() {
         ))}
       </div>
 
-      {/* 🕒 日間／週間／全体 切替（ランキング時のみ） */}
+      {/* 🕒 日間／週間／全体 切替 */}
       {!query && (
         <div className="flex justify-center mb-4 gap-3 flex-wrap">
           {[
@@ -122,7 +137,8 @@ export default function RankingContent() {
               key={p.key}
               onClick={() => {
                 setPeriod(p.key as any);
-                updateURL({ period: p.key });
+                setPage(1);
+                updateURL({ period: p.key, page: 1 });
               }}
               className={`px-4 py-2 rounded-lg border ${
                 period === p.key
@@ -146,7 +162,8 @@ export default function RankingContent() {
             key={o.key}
             onClick={() => {
               setOrder(o.key as any);
-              updateURL({ order: o.key });
+              setPage(1);
+              updateURL({ order: o.key, page: 1 });
             }}
             className={`px-4 py-2 rounded-lg border ${
               order === o.key
@@ -159,6 +176,7 @@ export default function RankingContent() {
         ))}
       </div>
 
+      {/* 📺 コンテンツ */}
       {loading ? (
         <p className="text-center text-gray-500">読み込み中...</p>
       ) : videos.length === 0 ? (
@@ -185,7 +203,7 @@ export default function RankingContent() {
               <div className="p-3">
                 {!query && order === "view_count" && (
                   <p className="text-sm text-gray-400 font-semibold">
-                    #{i + 1}
+                    #{(page - 1) * LIMIT + i + 1}
                   </p>
                 )}
                 <h2 className="font-semibold line-clamp-2 text-gray-800">
@@ -208,6 +226,37 @@ export default function RankingContent() {
               </div>
             </a>
           ))}
+        </div>
+      )}
+
+      {/* 📄 ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            onClick={() => {
+              setPage((p) => Math.max(p - 1, 1));
+              updateURL({ page: Math.max(page - 1, 1) });
+            }}
+            disabled={page <= 1}
+            className="px-3 py-1 border rounded disabled:opacity-40"
+          >
+            ← 前へ
+          </button>
+
+          <span className="text-sm text-gray-700">
+            {page} / {totalPages}
+          </span>
+
+          <button
+            onClick={() => {
+              setPage((p) => Math.min(p + 1, totalPages));
+              updateURL({ page: Math.min(page + 1, totalPages) });
+            }}
+            disabled={page >= totalPages}
+            className="px-3 py-1 border rounded disabled:opacity-40"
+          >
+            次へ →
+          </button>
         </div>
       )}
     </main>

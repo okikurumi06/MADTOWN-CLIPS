@@ -4,66 +4,68 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "48", 10);
+    const offset = (page - 1) * limit;
+
+    const period = searchParams.get("period") || "week";
+    const type = searchParams.get("type") || "all";
+    const order = searchParams.get("order") || "view_count";
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { searchParams } = new URL(request.url);
-
-    // 📊 パラメータ取得
-    const period = searchParams.get("period") || "week"; // "day" | "week" | "all"
-    const type = searchParams.get("type") || "all"; // "all" | "short" | "normal"
-    const order = searchParams.get("order") || "view_count"; // "view_count" | "published_at"
-
-    // 📅 期間指定（"all" の場合は期間制限なし）
+    // 🗓️ 期間フィルタ（日間・週間・全体）
     const now = new Date();
-    let from: Date | null = null;
+    let since: Date | null = null;
     if (period === "day") {
-      from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     } else if (period === "week") {
-      from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // 🧱 ベースクエリ
-    let builder = supabase
+    // 🔍 ベースクエリ
+    let query = supabase
       .from("videos")
-      .select(
-        "id, title, channel_name, view_count, like_count, thumbnail_url, published_at, is_short_final"
-      )
-      .order(order, { ascending: false })
-      .limit(50);
+      .select("*", { count: "exact" })
+      .order(order as "view_count" | "published_at", { ascending: false });
 
-    // 🕒 期間フィルタ（全体はスキップ）
-    if (from) {
-      builder = builder.gte("published_at", from.toISOString());
+    if (since) {
+      query = query.gte("published_at", since.toISOString());
     }
 
-    // 🎞️ 動画タイプフィルタ
+    // 🎞️ 通常／ショート絞り込み
     if (type === "short") {
-      builder = builder.eq("is_short_final", true);
+      query = query.eq("is_short_final", true);
     } else if (type === "normal") {
-      builder = builder.eq("is_short_final", false);
+      query = query.eq("is_short_final", false);
     }
 
-    const { data, error } = await builder;
-    if (error) throw error;
+    // 📄 ページ指定（rangeは0始まり）
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error("❌ ranking API error:", error);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       ok: true,
-      period,
-      type,
-      order,
-      count: data?.length || 0,
-      results: data,
+      data,
+      page,
+      total: count,
+      totalPages: Math.ceil((count || 0) / limit),
     });
   } catch (error: any) {
-    console.error("❌ ranking error:", error);
-    return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 500 }
-    );
+    console.error("❌ ranking route error:", error);
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
