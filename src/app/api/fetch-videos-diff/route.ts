@@ -5,8 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { logQuota } from "@/src/lib/logQuota";
 
 export const runtime = "nodejs";
-const MAX_RESULTS = 5; // quota節約
-const ACTIVE_WITHIN_DAYS = 14; // 最近2週間以内に更新のあるチャンネルのみ対象
+const MAX_RESULTS = 5;
+const ACTIVE_WITHIN_DAYS = 14;
 
 export async function GET() {
   try {
@@ -15,7 +15,6 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 📅 Supabaseから最新投稿日を取得
     const { data: latest, error: latestError } = await supabase
       .from("videos")
       .select("published_at")
@@ -29,7 +28,6 @@ export async function GET() {
     const now = new Date().toISOString();
     console.log(`📺 差分取得開始: ${publishedAfter} 以降`);
 
-    // 🧭 最近アクティブなチャンネルを取得
     const since = new Date();
     since.setDate(since.getDate() - ACTIVE_WITHIN_DAYS);
 
@@ -40,8 +38,7 @@ export async function GET() {
       .or(`last_checked.is.null,last_checked.gt.${since.toISOString()}`);
 
     if (chError) throw chError;
-    if (!channels?.length)
-      throw new Error("最近アクティブなチャンネルがありません。");
+    if (!channels?.length) throw new Error("最近アクティブなチャンネルがありません。");
 
     console.log(`📡 対象チャンネル: ${channels.length} 件`);
 
@@ -56,7 +53,6 @@ export async function GET() {
       return h * 3600 + min * 60 + s;
     };
 
-    // 🔁 APIキー自動フェイルオーバー
     const keys = [
       process.env.YT_API_KEY,
       process.env.YT_API_KEY_BACKUP,
@@ -95,10 +91,9 @@ export async function GET() {
         })
       );
 
-      const ids =
-        searchRes.data.items
-          ?.map((v: any) => v.id?.videoId)
-          .filter(Boolean) as string[];
+      const ids = searchRes.data.items
+        ?.map((v: any) => v.id?.videoId)
+        .filter(Boolean) as string[];
 
       if (!ids?.length) continue;
 
@@ -109,13 +104,22 @@ export async function GET() {
         })
       );
 
+      // 🎯 MADTOWN 関連タイトルのみ抽出
       const videos =
         statsRes.data.items
           ?.filter((v: any) => {
+            const title = v.snippet?.title?.toLowerCase() || "";
             const duration = v.contentDetails?.duration || "";
             const durationSec = parseDuration(duration);
             const liveState = v.snippet?.liveBroadcastContent;
-            return durationSec > 0 && durationSec <= 3600 && liveState === "none";
+
+            // 🟣 タイトルに "madtown" が含まれることが必須
+            return (
+              title.includes("madtown") &&
+              durationSec > 0 &&
+              durationSec <= 3600 &&
+              liveState === "none"
+            );
           })
           .map((v: any) => ({
             id: v.id!,
@@ -126,7 +130,6 @@ export async function GET() {
             published_at: v.snippet?.publishedAt,
             thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
             duration: v.contentDetails?.duration || "",
-            // ❌ is_short_final は書かない（新規は自動で NULL）
             season: "2025-10",
             updated_at: now,
           })) || [];
@@ -145,8 +148,6 @@ export async function GET() {
     }
 
     console.log(`🎉 差分取得完了: ${totalInserted} 件`);
-
-    // ✅ クォータ記録（おおよそ25件×2リクエスト = 50unit想定）
     await logQuota("fetch-videos-diff", 50);
 
     return NextResponse.json({
@@ -155,12 +156,8 @@ export async function GET() {
       since: publishedAfter,
       timestamp: now,
     });
-
   } catch (error: any) {
     console.error("❌ fetch-videos-diff error:", error);
-    return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
