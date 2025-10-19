@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
+import { logQuota } from "@/src/lib/logQuota";
 
 export const runtime = "nodejs";
 const MAX_RESULTS = 5; // quota節約
@@ -144,12 +145,17 @@ export async function GET() {
     }
 
     console.log(`🎉 差分取得完了: ${totalInserted} 件`);
+
+    // ✅ クォータ記録（おおよそ25件×2リクエスト = 50unit想定）
+    await logQuota("fetch-videos-diff", 50);
+
     return NextResponse.json({
       ok: true,
       inserted: totalInserted,
       since: publishedAfter,
       timestamp: now,
     });
+
   } catch (error: any) {
     console.error("❌ fetch-videos-diff error:", error);
     return NextResponse.json(

@@ -1,6 +1,7 @@
 // src/app/api/update-is-short-html/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { logQuota } from "@/src/lib/logQuota";
 
 export const runtime = "nodejs";
 
@@ -140,6 +141,8 @@ export async function GET() {
       updatedCount++;
     }
   }
+  // logのDB記録
+  await logQuota("update-is-short-html", 20);
 
   console.log(`✅ 更新完了: ${updatedCount} 件`);
   return NextResponse.json({ ok: true, updated: updatedCount });

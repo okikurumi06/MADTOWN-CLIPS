@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
+import { logQuota } from "@/src/lib/logQuota";
+
 
 export const runtime = "nodejs";
 
@@ -121,6 +123,9 @@ export async function GET() {
 
       nextPageToken = searchRes.data.nextPageToken ?? undefined;
     } while (nextPageToken);
+   
+    // logのDB記録
+    await logQuota("fetch-videos-hashtag", 50);
 
     console.log(`🎉 MADTOWNタイトル検索完了: ${totalInserted}件`);
     return NextResponse.json({ ok: true, inserted: totalInserted });
