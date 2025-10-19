@@ -73,6 +73,18 @@ export default function RankingContent() {
     fetchData();
   }, [period, type, order, page]);
 
+  // ページ番号ナビの生成
+  const visiblePages = 7;
+  const startPage = Math.max(1, page - Math.floor(visiblePages / 2));
+  const endPage = Math.min(totalPages, startPage + visiblePages - 1);
+
+  const goToPage = (num: number) => {
+    if (num >= 1 && num <= totalPages) {
+      setPage(num);
+      updateURL({ page: num });
+    }
+  };
+
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6 text-center">
@@ -229,38 +241,75 @@ export default function RankingContent() {
         </div>
       )}
 
-      {/* 📄 ページネーション */}
+      {/* 📄 ページ番号ナビ */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-4 mt-8">
+        <div className="flex justify-center items-center gap-1 mt-10 select-none">
+          {/* ≪ 最初へ */}
           <button
-            onClick={() => {
-              setPage((p) => Math.max(p - 1, 1));
-              updateURL({ page: Math.max(page - 1, 1) });
-            }}
-            disabled={page <= 1}
-            className="px-3 py-1 border rounded disabled:opacity-40"
+            onClick={() => goToPage(1)}
+            disabled={page === 1}
+            className={`px-2 py-1 text-lg ${
+              page === 1 ? "text-gray-400 cursor-not-allowed" : "hover:text-gray-800"
+            }`}
           >
-            ← 前へ
+            «
           </button>
 
-          <span className="text-sm text-gray-700">
-            {page} / {totalPages}
-          </span>
-
+          {/* ‹ 前へ */}
           <button
-            onClick={() => {
-              setPage((p) => Math.min(p + 1, totalPages));
-              updateURL({ page: Math.min(page + 1, totalPages) });
-            }}
-            disabled={page >= totalPages}
-            className="px-3 py-1 border rounded disabled:opacity-40"
+            onClick={() => goToPage(page - 1)}
+            disabled={page === 1}
+            className={`px-2 py-1 text-lg ${
+              page === 1 ? "text-gray-400 cursor-not-allowed" : "hover:text-gray-800"
+            }`}
           >
-            次へ →
+            ‹
+          </button>
+
+          {/* ページ番号 */}
+          {Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((num) => (
+            <button
+              key={num}
+              onClick={() => goToPage(num)}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                num === page
+                  ? "bg-purple-600 text-white"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              {num}
+            </button>
+          ))}
+
+          {/* › 次へ */}
+          <button
+            onClick={() => goToPage(page + 1)}
+            disabled={page === totalPages}
+            className={`px-2 py-1 text-lg ${
+              page === totalPages
+                ? "text-gray-400 cursor-not-allowed"
+                : "hover:text-gray-800"
+            }`}
+          >
+            ›
+          </button>
+
+          {/* » 最後へ */}
+          <button
+            onClick={() => goToPage(totalPages)}
+            disabled={page === totalPages}
+            className={`px-2 py-1 text-lg ${
+              page === totalPages
+                ? "text-gray-400 cursor-not-allowed"
+                : "hover:text-gray-800"
+            }`}
+          >
+            »
           </button>
         </div>
       )}
 
-      {/* 👇 ページ下フッター（控えめな制作者表記） */}
+      {/* 👇 ページ下フッター */}
       <footer className="mt-10 mb-4 text-center text-sm text-gray-500">
         © 2025{" "}
         <span className="font-medium">okikurumi</span> ·{" "}
@@ -274,6 +323,5 @@ export default function RankingContent() {
         </a>
       </footer>
     </main>
-
   );
 }
