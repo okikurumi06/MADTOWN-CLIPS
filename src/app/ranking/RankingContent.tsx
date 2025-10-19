@@ -20,7 +20,6 @@ export default function RankingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // 🔄 URLパラメータから初期値を読み取る
   const [period, setPeriod] = useState<"week" | "day" | "all">(
     (searchParams.get("period") as "week" | "day" | "all") || "week"
   );
@@ -38,7 +37,6 @@ export default function RankingContent() {
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
 
-  // 📦 URL更新
   const updateURL = (params: Record<string, string | number>) => {
     const sp = new URLSearchParams({
       period,
@@ -53,10 +51,8 @@ export default function RankingContent() {
     router.replace(`/ranking?${sp.toString()}`);
   };
 
-  // 📡 データ取得
   const fetchData = async () => {
     setLoading(true);
-
     const endpoint = query
       ? `/api/search?q=${encodeURIComponent(query)}&type=${type}&order=${order}&page=${page}`
       : `/api/ranking?period=${period}&type=${type}&order=${order}&page=${page}&limit=${LIMIT}`;
@@ -73,14 +69,9 @@ export default function RankingContent() {
     fetchData();
   }, [period, type, order, page]);
 
-  // ページ番号ナビの生成
   const visiblePages = 7;
-
-  // ✅ 1から始まるように修正
   let startPage = Math.max(1, page - Math.floor(visiblePages / 2));
   let endPage = Math.min(totalPages, startPage + visiblePages - 1);
-
-  // ← 最後の方でページ数が少ないときに右端寄せされるよう調整
   if (endPage - startPage + 1 < visiblePages) {
     startPage = Math.max(1, endPage - visiblePages + 1);
   }
@@ -94,18 +85,18 @@ export default function RankingContent() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6 text-center">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
         MADTOWN 切り抜き動画ランキング & 検索
       </h1>
 
       {/* 🔍 検索バー */}
-      <div className="flex flex-col md:flex-row justify-center gap-3 mb-6">
+      <div className="flex flex-wrap justify-center gap-3 mb-6">
         <input
           type="text"
           placeholder="タイトルやチャンネル名で検索"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="border rounded-lg px-4 py-2 w-full md:w-96"
+          className="border rounded-lg px-4 py-2 w-full sm:w-80 md:w-96"
         />
         <button
           onClick={() => {
@@ -113,14 +104,14 @@ export default function RankingContent() {
             updateURL({ q: query, page: 1 });
             fetchData();
           }}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition w-full sm:w-auto"
         >
           検索
         </button>
       </div>
 
       {/* 🎞️ 動画タイプ切替 */}
-      <div className="flex justify-center mb-4 gap-3 flex-wrap">
+      <div className="flex justify-center mb-4 gap-2 sm:gap-3 flex-wrap">
         {[
           { key: "all", label: "すべて" },
           { key: "short", label: "ショートのみ" },
@@ -133,7 +124,7 @@ export default function RankingContent() {
               setPage(1);
               updateURL({ type: item.key, page: 1 });
             }}
-            className={`px-4 py-2 rounded-lg border ${
+            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
               type === item.key
                 ? "bg-purple-600 text-white"
                 : "bg-gray-100 hover:bg-gray-200"
@@ -146,7 +137,7 @@ export default function RankingContent() {
 
       {/* 🕒 日間／週間／全体 切替 */}
       {!query && (
-        <div className="flex justify-center mb-4 gap-3 flex-wrap">
+        <div className="flex justify-center mb-4 gap-2 sm:gap-3 flex-wrap">
           {[
             { key: "day", label: "日間" },
             { key: "week", label: "週間" },
@@ -159,7 +150,7 @@ export default function RankingContent() {
                 setPage(1);
                 updateURL({ period: p.key, page: 1 });
               }}
-              className={`px-4 py-2 rounded-lg border ${
+              className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
                 period === p.key
                   ? "bg-purple-600 text-white"
                   : "bg-gray-100 hover:bg-gray-200"
@@ -172,7 +163,7 @@ export default function RankingContent() {
       )}
 
       {/* 📊 並び替えボタン */}
-      <div className="flex justify-center mb-6 gap-3">
+      <div className="flex justify-center mb-6 gap-2 sm:gap-3 flex-wrap">
         {[
           { key: "view_count", label: "再生数順" },
           { key: "published_at", label: "投稿日順" },
@@ -184,7 +175,7 @@ export default function RankingContent() {
               setPage(1);
               updateURL({ order: o.key, page: 1 });
             }}
-            className={`px-4 py-2 rounded-lg border ${
+            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
               order === o.key
                 ? "bg-purple-600 text-white"
                 : "bg-gray-100 hover:bg-gray-200"
@@ -201,7 +192,7 @@ export default function RankingContent() {
       ) : videos.length === 0 ? (
         <p className="text-center text-gray-400">該当する動画がありません。</p>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {videos.map((v, i) => (
             <a
               key={v.id}
@@ -217,23 +208,23 @@ export default function RankingContent() {
               <img
                 src={v.thumbnail_url}
                 alt={v.title}
-                className="w-full aspect-video object-cover"
+                className="w-full aspect-[16/9] sm:aspect-video object-cover"
               />
-              <div className="p-3">
+              <div className="p-3 sm:p-4">
                 {!query && order === "view_count" && (
-                  <p className="text-sm text-gray-400 font-semibold">
+                  <p className="text-xs sm:text-sm text-gray-400 font-semibold mb-1">
                     #{(page - 1) * LIMIT + i + 1}
                   </p>
                 )}
-                <h2 className="font-semibold line-clamp-2 text-gray-800">
+                <h2 className="font-semibold text-gray-800 line-clamp-2 text-sm sm:text-base">
                   {v.title}
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">{v.channel_name}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mt-1">{v.channel_name}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   👁 {v.view_count.toLocaleString()}　👍{" "}
                   {v.like_count.toLocaleString()}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-[11px] sm:text-xs text-gray-400 mt-1">
                   {new Date(v.published_at).toLocaleDateString("ja-JP")}
                 </p>
 
@@ -250,8 +241,7 @@ export default function RankingContent() {
 
       {/* 📄 ページ番号ナビ */}
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-1 mt-10 select-none">
-          {/* ≪ 最初へ */}
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-10 select-none">
           <button
             onClick={() => goToPage(1)}
             disabled={page === 1}
@@ -261,8 +251,6 @@ export default function RankingContent() {
           >
             «
           </button>
-
-          {/* ‹ 前へ */}
           <button
             onClick={() => goToPage(page - 1)}
             disabled={page === 1}
@@ -273,7 +261,6 @@ export default function RankingContent() {
             ‹
           </button>
 
-          {/* ページ番号 */}
           {Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((num) => (
             <button
               key={num}
@@ -288,7 +275,6 @@ export default function RankingContent() {
             </button>
           ))}
 
-          {/* › 次へ */}
           <button
             onClick={() => goToPage(page + 1)}
             disabled={page === totalPages}
@@ -300,8 +286,6 @@ export default function RankingContent() {
           >
             ›
           </button>
-
-          {/* » 最後へ */}
           <button
             onClick={() => goToPage(totalPages)}
             disabled={page === totalPages}
@@ -316,10 +300,9 @@ export default function RankingContent() {
         </div>
       )}
 
-      {/* 👇 ページ下フッター */}
-      <footer className="mt-10 mb-4 text-center text-sm text-gray-500">
-        © 2025{" "}
-        <span className="font-medium">okikurumi</span> ·{" "}
+      {/* 👇 フッター */}
+      <footer className="mt-10 mb-4 text-center text-xs sm:text-sm text-gray-500">
+        © 2025 <span className="font-medium">okikurumi</span> ·{" "}
         <a
           href="https://github.com/okikurumi06/madtown-clips"
           target="_blank"
