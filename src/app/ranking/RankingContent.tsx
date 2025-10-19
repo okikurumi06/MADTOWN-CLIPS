@@ -260,5 +260,19 @@ export default function RankingContent() {
         </div>
       )}
     </main>
+    {/* 👇 ページ下フッター（控えめな制作者表記） */}
+    <footer className="mt-10 mb-4 text-center text-sm text-gray-500">
+      © 2025{" "}
+      <span className="font-medium">okikurumi</span> ·{" "}
+      <a
+        href="https://github.com/okikurumi/madtown-clips"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline hover:text-gray-700 transition"
+      >
+        GitHub
+      </a>
+    </footer>
+
   );
 }
