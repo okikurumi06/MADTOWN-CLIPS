@@ -95,7 +95,7 @@ export default function RankingContent() {
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6 text-center">
-        MADTOWN 切り抜きランキング & 検索
+        MADTOWN 切り抜き動画ランキング & 検索
       </h1>
 
       {/* 🔍 検索バー */}
