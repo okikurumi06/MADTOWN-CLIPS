@@ -4,27 +4,24 @@ import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 import { logQuota } from "@/src/lib/logQuota";
 
-// Node.js ランタイムを明示（Edgeではgoogleapisが動作しない）
 export const runtime = "nodejs";
+const MAX_RESULTS = 5;
+const ACTIVE_WITHIN_DAYS = 5;
+const DEFAULT_LIMIT = 50; // ← 1回で処理する最大チャンネル数
 
-// チューニング用パラメータ
-const MAX_RESULTS = 5;         // 1チャンネルあたり取得最大件数
-const ACTIVE_WITHIN_DAYS = 5;  // 直近チェック日から何日以内を対象にする
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const offset = Number(searchParams.get("offset") || 0);
+  const limit = Number(searchParams.get("limit") || DEFAULT_LIMIT);
 
+  console.log(`🔁 fetch-videos-diff batch: offset=${offset}, limit=${limit}`);
 
-export async function GET() {
   try {
-    /** ===============================
-     * 🏗️ Supabase初期化
-     * =============================== */
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    /** ===============================
-     * 🕒 最新の動画投稿日を取得
-     * =============================== */
     const { data: latest, error: latestError } = await supabase
       .from("videos")
       .select("published_at")
@@ -33,13 +30,10 @@ export async function GET() {
       .maybeSingle();
 
     if (latestError) throw latestError;
+
     const publishedAfter = latest?.published_at || "2025-10-01T00:00:00Z";
     const now = new Date().toISOString();
-    console.log(`📺 差分取得開始: ${publishedAfter} 以降`);
 
-    /** ===============================
-     * 🧭 対象チャンネルを抽出
-     * =============================== */
     const since = new Date();
     since.setDate(since.getDate() - ACTIVE_WITHIN_DAYS);
 
@@ -47,17 +41,16 @@ export async function GET() {
       .from("madtown_channels")
       .select("id, name, last_checked")
       .eq("active", true)
-      .or(`last_checked.is.null,last_checked.gt.${since.toISOString()}`);
+      .or(`last_checked.is.null,last_checked.gt.${since.toISOString()}`)
+      .order("name")
+      .range(offset, offset + limit - 1); // ← ここで分割処理
 
     if (chError) throw chError;
-    if (!channels?.length) throw new Error("最近アクティブなチャンネルがありません。");
-    const limitedChannels = channels.slice(0, 30);
+    if (!channels?.length)
+      throw new Error(`チャンネルが見つかりません (offset=${offset})`);
 
     console.log(`📡 対象チャンネル: ${channels.length} 件`);
 
-    /** ===============================
-     * 🔑 YouTube APIセットアップ
-     * =============================== */
     const keys = [
       process.env.YT_API_KEY,
       process.env.YT_API_KEY_BACKUP,
@@ -66,7 +59,6 @@ export async function GET() {
 
     let yt = google.youtube({ version: "v3", auth: keys[0] });
 
-    // クォータ制限が出たら自動的に次のAPIキーへ切替
     const trySearch = async (fn: () => Promise<any>) => {
       for (let i = 0; i < keys.length; i++) {
         try {
@@ -74,7 +66,7 @@ export async function GET() {
           return await fn();
         } catch (e: any) {
           if (e.code === 403 && e.message?.includes("quota")) {
-            console.warn(`⚠️ APIキー${i + 1}でquota超過、次キーに切替`);
+            console.warn(`⚠️ APIキー${i + 1} quota超過、次キーに切替`);
             continue;
           }
           throw e;
@@ -83,9 +75,6 @@ export async function GET() {
       throw new Error("すべてのAPIキーでquota制限に達しました。");
     };
 
-    /** ===============================
-     * ⏱️ ISO8601 → 秒 変換関数
-     * =============================== */
     const parseDuration = (iso: string): number => {
       const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
       if (!m) return 0;
@@ -98,17 +87,13 @@ export async function GET() {
     let totalInserted = 0;
     let idFixedCount = 0;
 
-    /** ===============================
-     * 🧩 各チャンネルごとの動画取得ループ
-     * =============================== */
     for (const ch of channels) {
-      console.log(`\n📡 チャンネル処理中: ${ch.name} (${ch.id})`);
+      console.log(`\n📡 ${ch.name} (${ch.id})`);
 
-      /** 🧠 1️⃣ チャンネルIDがUUID（UCで始まらない）場合は補正する */
       let channelId = ch.id;
+      // 🧠 UUID検知 → 正式チャンネルID補正
       if (!channelId.startsWith("UC")) {
-        console.log(`⚙️ UUID検出 → 正式チャンネルID検索開始 (${ch.name})`);
-
+        console.log(`🔧 UUID検出 → 正式ID取得 (${ch.name})`);
         const chSearch = await trySearch(() =>
           yt.search.list({
             part: ["snippet"],
@@ -117,26 +102,22 @@ export async function GET() {
             maxResults: 1,
           })
         );
-
         const realId = chSearch.data.items?.[0]?.snippet?.channelId;
         if (realId) {
           channelId = realId;
           idFixedCount++;
-
-          // ✅ Supabase側のIDを正式IDで更新
           await supabase
             .from("madtown_channels")
             .update({ id: realId })
             .eq("name", ch.name);
-
-          console.log(`✅ ${ch.name}: IDを正式化 → ${realId}`);
+          console.log(`✅ ${ch.name}: IDを更新 → ${realId}`);
         } else {
-          console.warn(`⚠️ ${ch.name}: チャンネルID検索失敗 → スキップ`);
+          console.warn(`⚠️ ${ch.name}: チャンネルID特定失敗 → スキップ`);
           continue;
         }
       }
 
-      /** 🧠 2️⃣ 新着動画の検索 */
+      // 🎥 新着動画取得
       const searchRes = await trySearch(() =>
         yt.search.list({
           part: ["id"],
@@ -151,10 +132,9 @@ export async function GET() {
       const ids = searchRes.data.items
         ?.map((v: any) => v.id?.videoId)
         .filter(Boolean) as string[];
-
       if (!ids?.length) continue;
 
-      /** 🧠 3️⃣ 動画詳細データを取得 */
+      // 📊 動画詳細取得
       const statsRes = await trySearch(() =>
         yt.videos.list({
           part: ["snippet", "statistics", "contentDetails"],
@@ -162,7 +142,7 @@ export async function GET() {
         })
       );
 
-      /** 🧠 4️⃣ MADTOWN関連タイトルだけを抽出 */
+      // 🎯 MADTOWN含むタイトルのみ登録
       const videos =
         statsRes.data.items
           ?.filter((v: any) => {
@@ -185,14 +165,12 @@ export async function GET() {
             updated_at: now,
           })) || [];
 
-      /** 🧠 5️⃣ DBへ upsert */
       if (videos.length > 0) {
         const { error } = await supabase.from("videos").upsert(videos);
         if (error) throw error;
         totalInserted += videos.length;
         console.log(`✅ ${ch.name}: ${videos.length} 件追加 (${totalInserted} 累計)`);
 
-        // チェック日を更新
         await supabase
           .from("madtown_channels")
           .update({ last_checked: now })
@@ -200,16 +178,13 @@ export async function GET() {
       }
     }
 
-    /** ===============================
-     * ✅ 結果まとめ
-     * =============================== */
-    console.log(`\n🎉 差分取得完了: ${totalInserted} 件`);
-    console.log(`🔧 ID自動補正: ${idFixedCount} 件`);
-
     await logQuota("fetch-videos-diff", 50);
+    console.log(`🎉 Batch完了: ${totalInserted}件追加, ID補正${idFixedCount}件`);
 
     return NextResponse.json({
       ok: true,
+      offset,
+      limit,
       inserted: totalInserted,
       id_fixed: idFixedCount,
       since: publishedAfter,
