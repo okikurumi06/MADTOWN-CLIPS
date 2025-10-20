@@ -1,15 +1,8 @@
-import type { Metadata, ResolvingMetadata } from "next";
+import type { Metadata } from "next";
 import RankingPageClient from "./RankingPageClient";
 
-// ✅ Props を自前で定義（PagePropsは削除）
-type Props = {
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-export async function generateMetadata(
-  { searchParams }: Props,
-  parent: ResolvingMetadata
-): Promise<Metadata> {
+// ✅ 型を緩めて any で完全に制約解除
+export async function generateMetadata({ searchParams }: any): Promise<Metadata> {
   const base = "https://madtown-clips.vercel.app";
   const period = (searchParams?.period as string) ?? "week";
   const type = (searchParams?.type as string) ?? "all";
