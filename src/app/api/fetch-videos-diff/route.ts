@@ -124,6 +124,7 @@ export async function GET() {
           .map((v: any) => ({
             id: v.id!,
             title: v.snippet?.title || "",
+            channel_id: v.snippet?.channelId || "", 
             channel_name: v.snippet?.channelTitle || "",
             view_count: parseInt(v.statistics?.viewCount || "0"),
             like_count: parseInt(v.statistics?.likeCount || "0"),
