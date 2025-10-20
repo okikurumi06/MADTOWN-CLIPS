@@ -1,7 +1,53 @@
-"use client";
-
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import RankingContent from "./RankingContent";
+
+export async function generateMetadata(
+  { searchParams }: { searchParams: Record<string, string | undefined> }
+): Promise<Metadata> {
+  const base = "https://madtown-clips.vercel.app"; // ← ドメイン変更時に更新
+  const period = searchParams.period ?? "week";
+  const type   = searchParams.type ?? "all";
+  const order  = searchParams.order ?? "view_count";
+  const page   = Number(searchParams.page ?? "1");
+  const q      = (searchParams.q ?? "").trim();
+
+  // タイトルと説明を生成
+  const pieces: string[] = [];
+  if (q) pieces.push(`「${q}」の検索結果`);
+  pieces.push("MADTOWN 切り抜きランキング");
+  const title = pieces.join(" | ");
+
+  const desc = q
+    ? `「${q}」を含むMADTOWN切り抜き動画の人気ランキング。動画タイプ: ${type}、期間: ${period}、並び順: ${order}（p.${page}）`
+    : `MADTOWN切り抜き動画の人気ランキング。動画タイプ: ${type}、期間: ${period}、並び順: ${order}（p.${page}）`;
+
+  // canonical URL（重複除外）
+  const url = new URL(`${base}/ranking`);
+  if (period !== "week") url.searchParams.set("period", period);
+  if (type !== "all") url.searchParams.set("type", type);
+  if (order !== "view_count") url.searchParams.set("order", order);
+  if (q) url.searchParams.set("q", q);
+  if (page > 1) url.searchParams.set("page", String(page));
+  const canonical = url.toString();
+
+  return {
+    title,
+    description: desc,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description: desc,
+      url: canonical,
+      siteName: "MADTOWN CLIPS",
+      type: "website",
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+  };
+}
 
 export default function RankingPage() {
   return (

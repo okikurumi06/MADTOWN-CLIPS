@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin
+Allow: /
+
+# クロール頻度のヒント（Googlebot用）
+Crawl-delay: 10
+
+# 主要ページのサイトマップ
+Sitemap: https://madtown-clips.vercel.app/sitemap.xml

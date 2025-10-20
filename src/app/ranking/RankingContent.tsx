@@ -77,6 +77,7 @@ export default function RankingContent() {
     if (num >= 1 && num <= totalPages) {
       setPage(num);
       updateURL({ page: num });
+      window.scrollTo({ top: 0, behavior: "smooth" }); // 📱 ページ移動時に上部へ戻る
     }
   };
 
@@ -104,7 +105,7 @@ export default function RankingContent() {
           }}
           className="px-4 py-2 rounded-lg transition w-full sm:w-auto
                      bg-purple-600 text-white hover:bg-purple-700
-                     dark:bg-purple-500 dark:hover:bg-purple-400 dark:text-white"
+                     dark:bg-purple-500 dark:hover:bg-purple-400"
         >
           検索
         </button>
@@ -124,7 +125,7 @@ export default function RankingContent() {
               setPage(1);
               updateURL({ type: item.key, page: 1 });
             }}
-            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
+            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base min-h-[44px] ${
               type === item.key
                 ? "bg-purple-600 text-white dark:bg-purple-500"
                 : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -150,7 +151,7 @@ export default function RankingContent() {
                 setPage(1);
                 updateURL({ period: p.key, page: 1 });
               }}
-              className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
+              className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base min-h-[44px] ${
                 period === p.key
                   ? "bg-purple-600 text-white dark:bg-purple-500"
                   : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -175,7 +176,7 @@ export default function RankingContent() {
               setPage(1);
               updateURL({ order: o.key, page: 1 });
             }}
-            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base ${
+            className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base min-h-[44px] ${
               order === o.key
                 ? "bg-purple-600 text-white dark:bg-purple-500"
                 : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -203,13 +204,13 @@ export default function RankingContent() {
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition
-                         bg-white dark:bg-gray-800"
+              className="rounded-xl overflow-hidden shadow-md hover:shadow-xl transition bg-white dark:bg-gray-800"
             >
               <img
                 src={v.thumbnail_url}
                 alt={v.title}
                 className="w-full aspect-[16/9] object-cover"
+                loading="lazy"
               />
               <div className="p-3 sm:p-4">
                 {!query && order === "view_count" && (
@@ -243,36 +244,27 @@ export default function RankingContent() {
 
       {/* 📄 ページネーション */}
       {totalPages > 1 && (
-        <div className="flex flex-wrap justify-center items-center gap-2 mt-10 mb-24 select-none">
-          <button
-            onClick={() => goToPage(1)}
-            disabled={page === 1}
-            className={`px-2 py-1 text-lg ${
-              page === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800 dark:hover:text-gray-100"
-            }`}
-          >
-            «
-          </button>
-
-          <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page === 1}
-            className={`px-2 py-1 text-lg ${
-              page === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800 dark:hover:text-gray-100"
-            }`}
-          >
-            ‹
-          </button>
+        <div className="flex justify-center flex-wrap items-center gap-1 sm:gap-2 mt-10 mb-24 select-none">
+          {["«", "‹"].map((symbol, i) => (
+            <button
+              key={symbol}
+              onClick={() => goToPage(i === 0 ? 1 : page - 1)}
+              disabled={page === 1}
+              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-md text-lg ${
+                page === 1
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
+            >
+              {symbol}
+            </button>
+          ))}
 
           {Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((num) => (
             <button
               key={num}
               onClick={() => goToPage(num)}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-md text-sm font-medium ${
                 num === page
                   ? "bg-purple-600 text-white dark:bg-purple-500"
                   : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -282,29 +274,20 @@ export default function RankingContent() {
             </button>
           ))}
 
-          <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page === totalPages}
-            className={`px-2 py-1 text-lg ${
-              page === totalPages
-                ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800 dark:hover:text-gray-100"
-            }`}
-          >
-            ›
-          </button>
-
-          <button
-            onClick={() => goToPage(totalPages)}
-            disabled={page === totalPages}
-            className={`px-2 py-1 text-lg ${
-              page === totalPages
-                ? "text-gray-400 cursor-not-allowed"
-                : "hover:text-gray-800 dark:hover:text-gray-100"
-            }`}
-          >
-            »
-          </button>
+          {["›", "»"].map((symbol, i) => (
+            <button
+              key={symbol}
+              onClick={() => goToPage(i === 0 ? page + 1 : totalPages)}
+              disabled={page === totalPages}
+              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-md text-lg ${
+                page === totalPages
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
+            >
+              {symbol}
+            </button>
+          ))}
         </div>
       )}
 
@@ -318,6 +301,10 @@ export default function RankingContent() {
           className="underline hover:text-gray-700 dark:hover:text-gray-200 transition"
         >
           GitHub
+        </a>{" "}
+        ·{" "}
+        <a href="/privacy" className="underline hover:text-gray-700 dark:hover:text-gray-200 transition">
+          プライバシーポリシー
         </a>
       </footer>
     </main>

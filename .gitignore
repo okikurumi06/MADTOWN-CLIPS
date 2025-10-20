@@ -19,6 +19,7 @@ tmp/
 .env.development
 .env.production
 .env.test
+*.key
 
 # ===============================
 # 🧠 Supabase / ローカル構成
