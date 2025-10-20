@@ -1,13 +1,10 @@
 //src/app/ranking/page.tsx
 import type { Metadata, ResolvingMetadata } from "next";
+import type { PageProps } from "next"; // ✅ 追加
 import RankingPageClient from "./RankingPageClient";
 
-type Props = {
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
 export async function generateMetadata(
-  { searchParams }: Props,
+  { searchParams }: PageProps,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
   const base = "https://madtown-clips.vercel.app";
