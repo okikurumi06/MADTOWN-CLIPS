@@ -1,46 +1,25 @@
+// src/app/ranking/page.tsx
 import type { Metadata } from "next";
-import RankingPageClient from "./RankingPageClient";
+import RankingPageClient from "./RankingPageClient"; // ← クライアント部分を分離したファイル
 
-// ✅ 型を緩めて any で完全に制約解除
-export async function generateMetadata({ searchParams }: any): Promise<Metadata> {
-  const base = "https://madtown-clips.vercel.app";
-  const period = (searchParams?.period as string) ?? "week";
-  const type = (searchParams?.type as string) ?? "all";
-  const order = (searchParams?.order as string) ?? "view_count";
-  const page = Number(searchParams?.page ?? "1");
-  const q = (searchParams?.q as string)?.trim() ?? "";
-
-  const pieces: string[] = [];
-  if (q) pieces.push(`「${q}」の検索結果`);
-  pieces.push("MADTOWN 切り抜きランキング");
-  const title = pieces.join(" | ");
-
-  const desc = q
-    ? `「${q}」を含むMADTOWN切り抜き動画の人気ランキング。動画タイプ: ${type}、期間: ${period}、並び順: ${order}（p.${page}）`
-    : `MADTOWN切り抜き動画の人気ランキング。動画タイプ: ${type}、期間: ${period}、並び順: ${order}（p.${page}）`;
-
-  const url = new URL(`${base}/ranking`);
-  if (period !== "week") url.searchParams.set("period", period);
-  if (type !== "all") url.searchParams.set("type", type);
-  if (order !== "view_count") url.searchParams.set("order", order);
-  if (q) url.searchParams.set("q", q);
-  if (page > 1) url.searchParams.set("page", String(page));
-  const canonical = url.toString();
-
-  return {
-    title,
-    description: desc,
-    alternates: { canonical },
-    openGraph: {
-      title,
-      description: desc,
-      url: canonical,
-      siteName: "MADTOWN CLIPS",
-      type: "website",
-    },
-    robots: { index: true, follow: true },
-  };
-}
+export const metadata: Metadata = {
+  title: "MADTOWN 切り抜きランキング | MADTOWN CLIPS",
+  description: "MADTOWN切り抜き動画の人気ランキング。ショート・通常動画別に再生数順でチェックできます。",
+  alternates: {
+    canonical: "https://madtown-clips.vercel.app/ranking",
+  },
+  openGraph: {
+    title: "MADTOWN 切り抜きランキング | MADTOWN CLIPS",
+    description: "MADTOWN切り抜き動画の人気ランキング。ショート・通常動画別に再生数順でチェックできます。",
+    url: "https://madtown-clips.vercel.app/ranking",
+    siteName: "MADTOWN CLIPS",
+    type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 export default function RankingPage() {
   return <RankingPageClient />;

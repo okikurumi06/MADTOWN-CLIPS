@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <h1 className="text-2xl sm:text-3xl font-bold mb-6">プライバシーポリシー</h1>
 
       <p className="text-sm text-gray-500 mb-8">
-        最終更新日：2025-10-19
+        最終更新日：2025-10-20
       </p>
 
       <section className="space-y-6 text-gray-800 leading-relaxed">
