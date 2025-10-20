@@ -4,18 +4,21 @@ import { google, youtube_v3 } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 import { logQuota } from "@/src/lib/logQuota";
 
-
 export const runtime = "nodejs";
 
+// 最大取得件数（1チャンネルあたり）
+const MAX_RESULTS = 3;
+// 取得対象期間（日数）
+const DAYS_RANGE = 7;
+
 export async function GET() {
-  console.log("🔍 MADTOWN関連動画のタイトル検索開始");
+  console.log("🔍 MADTOWN関連チャンネル限定での動画検索開始");
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 🔑 YouTube APIキーをフェイルオーバー対応に
   const keys = [
     process.env.YT_API_KEY,
     process.env.YT_API_KEY_BACKUP,
@@ -41,11 +44,8 @@ export async function GET() {
   };
 
   const now = new Date().toISOString();
-  const query =
-    "madtown OR マッドタウン OR #MADTOWN OR #マッドタウン OR madtown切り抜き";
-
+  const publishedAfter = new Date(Date.now() - DAYS_RANGE * 86400 * 1000).toISOString();
   let totalInserted = 0;
-  let nextPageToken: string | undefined;
 
   const parseDuration = (iso: string): number => {
     const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -57,35 +57,38 @@ export async function GET() {
   };
 
   try {
-    do {
+    // 🎯 登録チャンネルを取得（activeなもののみ）
+    const { data: channels, error: chErr } = await supabase
+      .from("madtown_channels")
+      .select("id, name")
+      .eq("active", true);
+
+    if (chErr) throw chErr;
+    if (!channels?.length)
+      throw new Error("有効なチャンネルが登録されていません。");
+
+    console.log(`📡 対象チャンネル: ${channels.length}件`);
+
+    for (const ch of channels) {
+      console.log(`📺 チャンネル取得中: ${ch.name} (${ch.id})`);
+
       const searchRes = (await trySearch(() =>
         yt.search.list({
-          part: ["id", "snippet"],
-          q: query,
+          part: ["id"],
+          channelId: ch.id!,
           type: ["video"],
           order: "date",
-          maxResults: 10, // 🔻 25→10に減らしてquota節約
-          pageToken: nextPageToken,
-          publishedAfter: "2025-10-01T00:00:00Z",
+          maxResults: MAX_RESULTS,
+          publishedAfter,
         })
       )) as unknown as { data: youtube_v3.Schema$SearchListResponse };
 
-      // 🎯 タイトルに MADTOWN/madtown が含まれているものだけ残す
-      const filtered = searchRes.data.items?.filter((v) => {
-        const title = v.snippet?.title?.toLowerCase() || "";
-        return title.includes("madtown");
-      });
-
-      const ids = filtered
+      const ids = searchRes.data.items
         ?.map((v) => v.id?.videoId)
         .filter(Boolean) as string[];
 
-      if (!ids?.length) {
-        nextPageToken = searchRes.data.nextPageToken ?? undefined;
-        continue;
-      }
+      if (!ids?.length) continue;
 
-      // 📊 詳細データ取得
       const statsRes = (await trySearch(() =>
         yt.videos.list({
           part: ["snippet", "statistics", "contentDetails"],
@@ -98,39 +101,46 @@ export async function GET() {
           ?.filter((v) => {
             const dur = parseDuration(v.contentDetails?.duration || "");
             const live = v.snippet?.liveBroadcastContent;
-            return dur > 0 && dur <= 3600 && live === "none";
+            const title = v.snippet?.title?.toLowerCase() || "";
+            return (
+              dur > 0 &&
+              dur <= 3600 &&
+              live === "none" &&
+              title.includes("madtown")
+            );
           })
           .map((v) => ({
             id: v.id!,
             title: v.snippet?.title || "",
+            channel_id: v.snippet?.channelId || "",
             channel_name: v.snippet?.channelTitle || "",
             view_count: parseInt(v.statistics?.viewCount || "0"),
             like_count: parseInt(v.statistics?.likeCount || "0"),
             published_at: v.snippet?.publishedAt,
             thumbnail_url: v.snippet?.thumbnails?.medium?.url || "",
             duration: v.contentDetails?.duration || "",
-            // ❌ is_short_finalは指定しない → NULL扱い（未判定）
             season: "2025-10",
             updated_at: now,
           })) || [];
 
-      if (videos.length > 0) {
-        const { error } = await supabase.from("videos").upsert(videos);
-        if (error) throw error;
-        totalInserted += videos.length;
-        console.log(`✅ ${videos.length} 件追加 (${totalInserted} 件累計)`);
+      if (!videos.length) continue;
+
+      const { error: insertErr } = await supabase.from("videos").upsert(videos);
+      if (insertErr) {
+        console.error(`⚠️ ${ch.name} の登録中にエラー:`, insertErr.message);
+        continue;
       }
 
-      nextPageToken = searchRes.data.nextPageToken ?? undefined;
-    } while (nextPageToken);
-   
-    // logのDB記録
-    await logQuota("fetch-videos-hashtag", 50);
+      totalInserted += videos.length;
+      console.log(`✅ ${ch.name}: ${videos.length}件追加 (累計 ${totalInserted})`);
+    }
 
-    console.log(`🎉 MADTOWNタイトル検索完了: ${totalInserted}件`);
+    await logQuota("fetch-videos-hashtag-lite", 15); // 🔻 クォータ節約記録
+
+    console.log(`🎉 MADTOWN軽量タイトル検索完了: ${totalInserted}件`);
     return NextResponse.json({ ok: true, inserted: totalInserted });
   } catch (error: any) {
-    console.error("❌ fetch-videos-hashtag error:", error);
+    console.error("❌ fetch-videos-hashtag-lite error:", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
