@@ -1,5 +1,9 @@
 //src/app/ranking/page.tsx
+"use client";  // ← 必ず一番上に置く！
+
 import type { Metadata, ResolvingMetadata } from "next";
+import { Suspense } from "react";
+import RankingContent from "./RankingContent";
 
 type Props = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -44,17 +48,9 @@ export async function generateMetadata(
       siteName: "MADTOWN CLIPS",
       type: "website",
     },
-    robots: {
-      index: true,
-      follow: true,
-    },
+    robots: { index: true, follow: true },
   };
 }
-
-"use client";
-
-import { Suspense } from "react";
-import RankingContent from "./RankingContent";
 
 export default function RankingPage() {
   return (
