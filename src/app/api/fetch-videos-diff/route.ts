@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 const MAX_RESULTS = 5;         // 1チャンネルあたり取得最大件数
 const ACTIVE_WITHIN_DAYS = 5;  // 直近チェック日から何日以内を対象にする
 
+
 export async function GET() {
   try {
     /** ===============================
@@ -50,6 +51,7 @@ export async function GET() {
 
     if (chError) throw chError;
     if (!channels?.length) throw new Error("最近アクティブなチャンネルがありません。");
+    const limitedChannels = channels.slice(0, 30);
 
     console.log(`📡 対象チャンネル: ${channels.length} 件`);
 
