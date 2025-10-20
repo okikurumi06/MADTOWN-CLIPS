@@ -1,9 +1,6 @@
 //src/app/ranking/page.tsx
-"use client";  // ← 必ず一番上に置く！
-
 import type { Metadata, ResolvingMetadata } from "next";
-import { Suspense } from "react";
-import RankingContent from "./RankingContent";
+import RankingPageClient from "./RankingPageClient";
 
 type Props = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -53,9 +50,5 @@ export async function generateMetadata(
 }
 
 export default function RankingPage() {
-  return (
-    <Suspense fallback={<div className="text-center mt-10">読み込み中...</div>}>
-      <RankingContent />
-    </Suspense>
-  );
+  return <RankingPageClient />;
 }
