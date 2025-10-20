@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 // 最大取得件数（1チャンネルあたり）
 const MAX_RESULTS = 3;
 // 取得対象期間（日数）
-const DAYS_RANGE = 7;
+const DAYS_RANGE = 3;
 
 export async function GET() {
   console.log("🔍 MADTOWN関連チャンネル限定での動画検索開始");
