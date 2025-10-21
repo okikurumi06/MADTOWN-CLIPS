@@ -2,5 +2,6 @@
   "buildCommand": "next build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "rewrites": [{ "source": "/(.*)", "destination": "/$1" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/$1" }],
+  "analytics": true
 }
