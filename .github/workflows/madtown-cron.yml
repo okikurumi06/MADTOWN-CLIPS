@@ -1,12 +1,18 @@
-name: MADTOWN CLIPS Cron Jobs (Balanced Optimized)
+# .github/workflows/madtown-cron.yml
+name: MADTOWN CLIPS Cron Jobs (Final Release)
 
 on:
   schedule:
-    # 🎥 新着動画取得（12時間ごと）
-    - cron: "0 */12 * * *"
+    # 🎥 上位30チャンネル（fetch-videos-diff2）
+    - cron: "0 1 * * *"   # 午前10時 JST
+    - cron: "0 7 * * *"   # 午後4時 JST
+    - cron: "0 12 * * *"  # 午後9時 JST
+
+    # 🎬 通常チャンネル（fetch-videos-diff）
+    - cron: "0 18 * * *"  # 午前3時 JST
 
     # 🏷️ ハッシュタグ検索（1日1回）
-    - cron: "30 9 * * *"
+    - cron: "30 9 * * *"  # 午後6時 JST
 
     # 🧩 ショート動画判定（毎時）
     - cron: "0 * * * *"
@@ -15,7 +21,7 @@ on:
     - cron: "0 */2 * * *"
 
     # 🧹 削除チェック（毎日早朝3時）
-    - cron: "0 3 * * *"
+    - cron: "0 18 * * *"  # 午前3時 JST
 
   workflow_dispatch: # 手動実行も可
 
@@ -24,57 +30,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ===============================
-      # 🎥 新着動画取得（12時間ごと）
-      # ===============================
-      - name: 🎥 Fetch Videos Diff Batch 1（12時間ごと）
+      - name: 🎥 Fetch Videos Diff2（上位30ch・10時/16時/21時）
         run: |
-          echo "Running fetch-videos-diff (Batch 1)..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/fetch-videos-diff?offset=0&limit=50"
+          echo "Running fetch-videos-diff2..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-diff2
 
-      - name: 🎥 Fetch Videos Diff Batch 2
+      - name: 🎬 Fetch Videos Diff（全チャンネル・1日1回）
         run: |
-          echo "Running fetch-videos-diff (Batch 2)..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/fetch-videos-diff?offset=50&limit=50"
+          echo "Running fetch-videos-diff..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-diff
 
-      - name: 🎥 Fetch Videos Diff Batch 3
-        run: |
-          echo "Running fetch-videos-diff (Batch 3)..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/fetch-videos-diff?offset=100&limit=50"
-
-      - name: 🎥 Fetch Videos Diff Batch 4
-        run: |
-          echo "Running fetch-videos-diff (Batch 4)..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/fetch-videos-diff?offset=150&limit=50"
-
-      # ===============================
-      # 🏷️ ハッシュタグ検索（1日1回）
-      # ===============================
       - name: 🏷️ Fetch Videos by Hashtag（1日1回）
         run: |
           echo "Running fetch-videos-hashtag..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/fetch-videos-hashtag"
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/fetch-videos-hashtag
 
-      # ===============================
-      # 🧩 ショート動画判定（毎時）
-      # ===============================
       - name: 🧩 Update Shorts（毎時）
         run: |
           echo "Running update-is-short-html..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/update-is-short-html"
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/update-is-short-html
 
-      # ===============================
-      # 📊 再生数・高評価更新（2時間ごと）
-      # ===============================
       - name: 📊 Update Stats（2時間ごと）
         run: |
           echo "Running update-stats..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/update-stats"
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/update-stats
 
-      # ===============================
-      # 🧹 削除チェック（毎日1回）
-      # ===============================
       - name: 🧹 Cleanup Deleted Videos（毎日3時）
         run: |
           echo "Running cleanup-deleted-videos..."
-          curl -s -o /dev/null -w "%{http_code}\n" "https://madtown-clips.vercel.app/api/cleanup-deleted-videos"
+          curl -s -o /dev/null -w "%{http_code}\n" https://madtown-clips.vercel.app/api/cleanup-deleted-videos
