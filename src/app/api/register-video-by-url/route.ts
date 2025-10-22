@@ -1,3 +1,4 @@
+// src/app/api/register-video-by-url/route.ts
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
@@ -10,64 +11,58 @@ export async function GET(req: Request) {
   const videoUrl = url.searchParams.get("url");
 
   if (!videoUrl) {
-    return NextResponse.json({ ok: false, error: "動画URLが指定されていません" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "動画URLが指定されていません" },
+      { status: 400 }
+    );
   }
 
   // ✅ URLからvideoIdを抽出（短縮URL対応）
-  const match = videoUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || videoUrl.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  const match =
+    videoUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/) ||
+    videoUrl.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   const videoId = match ? match[1] : null;
 
   if (!videoId) {
-    return NextResponse.json({ ok: false, error: "動画IDを抽出できませんでした" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "動画IDを抽出できませんでした" },
+      { status: 400 }
+    );
   }
 
   console.log(`🎯 動画登録開始: ${videoId}`);
 
+  // ✅ Supabaseクライアント作成
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 🔑 APIキーのフェイルオーバー
-  const keys = [
-    process.env.YT_API_KEY,
-    process.env.YT_API_KEY_BACKUP,
-    process.env.YT_API_KEY_BACKUP_2,
-  ].filter(Boolean) as string[];
+  // ✅ YouTube Data API キー（YT_API_KEY_4 のみ使用）
+  const apiKey = process.env.YT_API_KEY_4;
+  if (!apiKey) {
+    return NextResponse.json(
+      { ok: false, error: "YT_API_KEY_4 が設定されていません" },
+      { status: 500 }
+    );
+  }
 
-  let yt = google.youtube({ version: "v3", auth: keys[0] });
-
-  const trySearch = async (fn: () => Promise<any>) => {
-    for (let i = 0; i < keys.length; i++) {
-      try {
-        yt = google.youtube({ version: "v3", auth: keys[i] });
-        return await fn();
-      } catch (e: any) {
-        if (e.code === 403 && e.message?.includes("quota")) {
-          console.warn(`⚠️ APIキー${i + 1}でquota超過、次のキーに切替`);
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new Error("すべてのAPIキーでquota制限に達しました。");
-  };
+  // 🎬 YouTube API クライアント
+  const yt = google.youtube({ version: "v3", auth: apiKey });
 
   try {
     // 🎥 動画詳細取得
-    const res = await trySearch(() =>
-      yt.videos.list({
-        part: ["snippet", "statistics", "contentDetails"],
-        id: [videoId],
-      })
-    );
+    const res = await yt.videos.list({
+      part: ["snippet", "statistics", "contentDetails"],
+      id: [videoId],
+    });
 
     const v = res.data.items?.[0];
     if (!v) throw new Error("動画が見つかりませんでした");
 
     const now = new Date().toISOString();
 
-    // ⏱️ 長さを秒に変換
+    // ⏱️ ISO8601形式の動画長を秒数に変換
     const parseDuration = (iso: string): number => {
       const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
       if (!m) return 0;
@@ -94,7 +89,7 @@ export async function GET(req: Request) {
     };
 
     // 📦 Supabaseへ登録（重複は上書き）
-    const { error } = await supabase.from("videos").upsert(data);
+    const { error } = await supabase.from("videos").upsert(data, { onConflict: "id" });
     if (error) throw error;
 
     // 🧩 チャンネル登録（存在しなければ追加）
@@ -127,6 +122,9 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     console.error("❌ register-video-by-url error:", error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
