@@ -38,8 +38,8 @@ export async function GET(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // ✅ YouTube Data API キー（YT_API_KEY_4 のみ使用）
-  const apiKey = process.env.YT_API_KEY_4;
+  // ✅ YouTube Data API キー（YT_API_KEY4 のみ使用）
+  const apiKey = process.env.YT_API_KEY4;
   if (!apiKey) {
     return NextResponse.json(
       { ok: false, error: "YT_API_KEY_4 が設定されていません" },
