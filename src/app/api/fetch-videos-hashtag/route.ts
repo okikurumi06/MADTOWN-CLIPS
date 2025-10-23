@@ -74,7 +74,11 @@ export async function GET() {
       console.log(`📺 チャンネル取得中: ${ch.name}`);
 
       const playlistId = ch.uploads_playlist_id;
-      if (!playlistId) continue;
+      // ❌ playlistIdが存在しない or 無効形式（"UU"で始まらない）ものをスキップ
+      if (!playlistId || !playlistId.startsWith("UU")) {
+        console.warn(`⚠️ 無効なplaylistIdをスキップ: ${ch.name} (${playlistId})`);
+        continue;
+      }
 
       // 🎞️ アップロード動画リストを取得
       const playlistRes = (await trySearch(() =>
