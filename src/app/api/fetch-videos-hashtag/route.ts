@@ -20,7 +20,7 @@ export async function GET() {
 
   // 🔑 YouTube APIキー（フェイルオーバー）
   const keys = [
-    process.env.YT_API_KEY,
+    process.env.YT_API_KEY4,
     process.env.YT_API_KEY_BACKUP,
     process.env.YT_API_KEY_BACKUP_2,
   ].filter(Boolean) as string[];
